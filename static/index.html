@@ -57,6 +57,7 @@
   header h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; }
   header p { color: var(--muted); margin: 0; font-size: 1.02rem; }
   header .toplink { display: inline-block; margin-top: 12px; font-size: 0.9rem; }
+  .lede { text-align: center; color: var(--muted); font-size: 0.95rem; margin: -6px auto 24px; max-width: 48ch; }
   .card {
     background: var(--card);
     border: 1px solid var(--line);
@@ -187,23 +188,16 @@
 
   <!-- App (shown by JS when supported) -->
   <div id="app" class="hidden">
-    <div class="card">
-      <p class="hint" style="margin:0">
-        Highlights from books you sideloaded onto your Kobo (via Calibre, email or USB)
-        live only in the device's local <code>KoboReader.sqlite</code> — Readwise can't fetch
-        them automatically. This tool reads that file <b>in your browser</b> and forwards the
-        highlights to Readwise through a thin proxy that <b>never stores or logs your token on our server</b>.
-        Store, Kobo&nbsp;Plus and library books already sync via Readwise's own integration.
-        New here? <a href="/about.html">Read the full how-it-works &amp; help</a>.
-      </p>
-    </div>
+    <p class="lede">
+      Everything runs in your browser — your Readwise token is never stored on our server.
+    </p>
 
     <!-- Step 1: pick the database -->
     <div class="card" id="card-db">
       <h2><span class="step-num">1</span> Open your Kobo database</h2>
       <p class="hint">
-        Plug in your Kobo, then pick <code>KoboReader.sqlite</code> from the hidden
-        <code>.kobo</code> folder on the device. The file is read locally and never uploaded.
+        Pick <code>KoboReader.sqlite</code> from the hidden <code>.kobo</code> folder on your Kobo.
+        It's read locally, never uploaded.
       </p>
       <button id="pick-btn">Choose KoboReader.sqlite…</button>
       <div id="db-status" class="status"></div>
@@ -230,10 +224,9 @@
       <!-- Not connected -->
       <div id="connect-panel">
         <p class="hint">
-          Paste your Readwise access token from
+          Paste your token from
           <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
-          We check it with Readwise now, and forward it only when you sync —
-          it's <b>never stored on our server</b>.
+          We check it, and only forward it when you sync — <b>never stored on our server</b>.
         </p>
         <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
         <div class="controls">
