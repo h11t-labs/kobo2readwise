@@ -322,7 +322,10 @@
   }).catch(() => {});
 
   // --- Lazy-load sql.js only when needed (never blocks initial render) -------
-  const SQLJS_BASE = "https://cdn.jsdelivr.net/npm/sql.js@1/dist/";
+  // Self-hosted (same-origin) so no third-party script runs on this page and
+  // the ~0.7 MB wasm is only fetched once a database is picked. Pinned copy in
+  // static/sqljs/ (see static/sqljs/VERSION).
+  const SQLJS_BASE = "/sqljs/";
   let sqlJsPromise = null;
   function loadSqlJs() {
     if (sqlJsPromise) return sqlJsPromise;
@@ -331,8 +334,7 @@
       const s = document.createElement("script");
       s.src = SQLJS_BASE + "sql-wasm.js";
       s.onload = resolve;
-      s.onerror = () => reject(new Error(
-        "Couldn't load the sql.js library from the CDN — check your network or ad blocker."));
+      s.onerror = () => reject(new Error("Couldn't load the sql.js library — please reload the page."));
       document.head.appendChild(s);
     }).then(() => initSqlJs({ locateFile: (f) => SQLJS_BASE + f }));
     return sqlJsPromise;

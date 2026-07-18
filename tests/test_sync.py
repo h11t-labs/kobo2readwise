@@ -41,6 +41,15 @@ def test_html_revalidates():
     assert client.get("/about.html").headers.get("cache-control") == "no-cache"
 
 
+def test_sqljs_is_self_hosted():
+    # sql.js must be served from this app, not a CDN.
+    assert client.get("/sqljs/sql-wasm.js").status_code == 200
+    wasm = client.get("/sqljs/sql-wasm.wasm")
+    assert wasm.status_code == 200
+    # Correct MIME type matters for WebAssembly streaming instantiation.
+    assert wasm.headers["content-type"] == "application/wasm"
+
+
 def test_sync_without_token_is_400():
     resp = client.post("/sync", json={"highlights": [{"text": "hello"}]})
     assert resp.status_code == 400

@@ -46,6 +46,20 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
+### Vendored dependency
+
+[sql.js](https://sql.js.org) is **self-hosted** in [`static/sqljs/`](static/sqljs/)
+(not loaded from a CDN) so no third-party script runs on the page — important
+because the browser may hold your Readwise token. The pinned version is in
+[`static/sqljs/VERSION`](static/sqljs/VERSION). To update it:
+
+```bash
+VER=$(curl -sL https://registry.npmjs.org/sql.js/latest | python3 -c "import sys,json;print(json.load(sys.stdin)['version'])")
+curl -sL -o static/sqljs/sql-wasm.js   "https://cdn.jsdelivr.net/npm/sql.js@${VER}/dist/sql-wasm.js"
+curl -sL -o static/sqljs/sql-wasm.wasm "https://cdn.jsdelivr.net/npm/sql.js@${VER}/dist/sql-wasm.wasm"
+echo "$VER" > static/sqljs/VERSION
+```
+
 ## Deploy
 
 Hosted on [Fly.io](https://fly.io) as a single scale-to-zero app.
