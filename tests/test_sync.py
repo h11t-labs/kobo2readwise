@@ -10,7 +10,7 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from app import READWISE_URL, app
+from app import READWISE_AUTH_URL, READWISE_URL, app
 
 client = TestClient(app)
 
@@ -49,6 +49,38 @@ def test_sync_without_token_is_400():
 def test_sync_without_highlights_is_400():
     resp = client.post("/sync", json={"token": "abc", "highlights": []})
     assert resp.status_code == 400
+
+
+def test_verify_without_token_is_400():
+    resp = client.post("/verify", json={})
+    assert resp.status_code == 400
+
+
+@respx.mock
+def test_verify_valid_token():
+    route = respx.get(READWISE_AUTH_URL).mock(return_value=httpx.Response(204))
+    resp = client.post("/verify", json={"token": "good-token"})
+    assert resp.status_code == 200
+    assert resp.json() == {"valid": True}
+    assert route.calls.last.request.headers["authorization"] == "Token good-token"
+
+
+@respx.mock
+def test_verify_invalid_token():
+    respx.get(READWISE_AUTH_URL).mock(return_value=httpx.Response(401))
+    resp = client.post("/verify", json={"token": "bad-token"})
+    assert resp.status_code == 200
+    assert resp.json() == {"valid": False}
+
+
+@respx.mock
+def test_verify_never_leaks_token(caplog):
+    respx.get(READWISE_AUTH_URL).mock(return_value=httpx.Response(204))
+    token = "verify-secret-should-not-leak-42"
+    with caplog.at_level(logging.DEBUG):
+        resp = client.post("/verify", json={"token": token})
+    assert token not in resp.text
+    assert token not in caplog.text
 
 
 @respx.mock
