@@ -66,12 +66,14 @@
     padding: 24px;
     margin-bottom: 18px;
   }
-  .card h2 { font-size: 1.05rem; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .card.step { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: start; }
+  .step-body { min-width: 0; }
   .step-num {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
     background: var(--brand); color: var(--brand-ink);
-    font-size: 0.8rem; font-weight: 700; flex: none;
+    font-size: 0.85rem; font-weight: 700;
   }
   .card p.hint { color: var(--muted); font-size: 0.92rem; margin: 4px 0 16px; }
   .card[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
@@ -96,10 +98,23 @@
   .summary { display: flex; gap: 22px; margin: 4px 0 14px; }
   .summary .num { font-size: 1.6rem; font-weight: 700; line-height: 1; }
   .summary .lbl { color: var(--muted); font-size: 0.82rem; }
-  .booklist { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
-  .booklist li { padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 0.9rem; display: flex; justify-content: space-between; gap: 12px; }
-  .booklist li:last-child { border-bottom: none; }
-  .booklist .count { color: var(--muted); flex: none; }
+  .booklist { margin: 0; max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .book { border-bottom: 1px solid var(--line); }
+  .book:last-child { border-bottom: none; }
+  .book > summary {
+    cursor: pointer; padding: 9px 12px; font-size: 0.9rem; list-style: none;
+    display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  }
+  .book > summary::-webkit-details-marker { display: none; }
+  .book > summary::after { content: "+"; color: var(--muted); flex: none; }
+  .book[open] > summary::after { content: "−"; }
+  .book-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .book .count { color: var(--muted); flex: none; font-size: 0.82rem; }
+  .hl-list { list-style: none; margin: 0; padding: 2px 12px 10px; }
+  .hl-list li { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--brand); }
+  .hl-text { font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; }
+  .hl-note { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+  .hl-empty { padding: 12px; font-size: 0.9rem; color: var(--muted); }
   .status { margin-top: 14px; font-size: 0.95rem; }
   .status.ok { color: var(--ok); }
   .status.err { color: var(--err); }
@@ -193,64 +208,74 @@
     </p>
 
     <!-- Step 1: pick the database -->
-    <div class="card" id="card-db">
-      <h2><span class="step-num">1</span> Open your Kobo database</h2>
-      <p class="hint">
-        Pick <code>KoboReader.sqlite</code> from the hidden <code>.kobo</code> folder on your Kobo.
-        It's read locally, never uploaded.
-      </p>
-      <button id="pick-btn">Choose KoboReader.sqlite…</button>
-      <div id="db-status" class="status"></div>
+    <div class="card step" id="card-db">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h2>Open your Kobo database</h2>
+        <p class="hint">
+          Pick <code>KoboReader.sqlite</code> from the hidden <code>.kobo</code> folder on your Kobo.
+          It's read locally, never uploaded.
+        </p>
+        <button id="pick-btn">Choose KoboReader.sqlite…</button>
+        <div id="db-status" class="status"></div>
+      </div>
     </div>
 
     <!-- Step 2: review -->
-    <div class="card" id="card-review" aria-disabled="true">
-      <h2><span class="step-num">2</span> Review highlights</h2>
-      <div class="summary">
-        <div><div class="num" id="n-highlights">0</div><div class="lbl">highlights</div></div>
-        <div><div class="num" id="n-books">0</div><div class="lbl">books</div></div>
+    <div class="card step" id="card-review" aria-disabled="true">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h2>Review highlights</h2>
+        <div class="summary">
+          <div><div class="num" id="n-highlights">0</div><div class="lbl">highlights</div></div>
+          <div><div class="num" id="n-books">0</div><div class="lbl">books</div></div>
+        </div>
+        <label class="row">
+          <input type="checkbox" id="sideloaded-only" checked />
+          Only sideloaded books (recommended — avoids duplicating store/library syncs)
+        </label>
+        <p class="hint" id="review-hint" style="margin:8px 0 10px">Expand a book to see the highlights that will be synced.</p>
+        <div class="booklist" id="booklist"></div>
       </div>
-      <label class="row">
-        <input type="checkbox" id="sideloaded-only" checked />
-        Only sideloaded books (recommended — avoids duplicating store/library syncs)
-      </label>
-      <ul class="booklist" id="booklist"></ul>
     </div>
 
     <!-- Step 3: connect + sync -->
-    <div class="card" id="card-sync">
-      <h2><span class="step-num">3</span> Connect Readwise &amp; sync</h2>
+    <div class="card step" id="card-sync">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h2>Connect Readwise &amp; sync</h2>
 
-      <!-- Not connected -->
-      <div id="connect-panel">
-        <p class="hint">
-          Paste your token from
-          <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
-          We check it, and only forward it when you sync — <b>never stored on our server</b>.
-        </p>
-        <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
-        <div class="controls">
-          <label class="row"><input type="checkbox" id="show-token" /> Show token</label>
-          <label class="row"><input type="checkbox" id="remember-token" checked /> Remember on this device</label>
+        <!-- Not connected -->
+        <div id="connect-panel">
+          <p class="hint">
+            Paste your token from
+            <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
+            We check it, and only forward it when you sync — <b>never stored on our server</b>.
+          </p>
+          <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
+          <div class="controls">
+            <label class="row"><input type="checkbox" id="show-token" /> Show token</label>
+            <label class="row"><input type="checkbox" id="remember-token" checked /> Remember on this device</label>
+          </div>
+          <div style="margin-top:14px">
+            <button id="connect-btn" disabled>Connect to Readwise</button>
+          </div>
+          <div id="connect-status" class="status"></div>
         </div>
-        <div style="margin-top:14px">
-          <button id="connect-btn" disabled>Connect to Readwise</button>
-        </div>
-        <div id="connect-status" class="status"></div>
-      </div>
 
-      <!-- Connected -->
-      <div id="connected-panel" class="hidden">
-        <div class="connected-badge">
-          <span class="dot" aria-hidden="true"></span>
-          <span>Connected to Readwise</span>
-          <button id="disconnect-btn" class="linkbtn" type="button">Disconnect</button>
+        <!-- Connected -->
+        <div id="connected-panel" class="hidden">
+          <div class="connected-badge">
+            <span class="dot" aria-hidden="true"></span>
+            <span>Connected to Readwise</span>
+            <button id="disconnect-btn" class="linkbtn" type="button">Disconnect</button>
+          </div>
+          <div style="margin-top:16px">
+            <button id="sync-btn" disabled>Sync to Readwise</button>
+            <p class="hint" id="sync-hint" style="margin:10px 0 0">Load your Kobo database above to enable syncing.</p>
+          </div>
+          <div id="sync-status" class="status"></div>
         </div>
-        <div style="margin-top:16px">
-          <button id="sync-btn" disabled>Sync to Readwise</button>
-          <p class="hint" id="sync-hint" style="margin:10px 0 0">Load your Kobo database above to enable syncing.</p>
-        </div>
-        <div id="sync-status" class="status"></div>
       </div>
     </div>
   </div>
@@ -381,30 +406,58 @@
   // --- Render the review panel from current selection -----------------------
   function renderReview() {
     const rows = selectedRows();
-    const byBook = new Map();
+    const byBook = new Map(); // title -> rows[]
     for (const r of rows) {
       const key = bookTitle(r);
-      byBook.set(key, (byBook.get(key) || 0) + 1);
+      if (!byBook.has(key)) byBook.set(key, []);
+      byBook.get(key).push(r);
     }
     nHighlights.textContent = rows.length;
     nBooks.textContent = byBook.size;
 
     bookList.innerHTML = "";
     if (byBook.size === 0) {
-      const li = document.createElement("li");
-      li.textContent = "No matching highlights found.";
-      bookList.appendChild(li);
-    } else {
-      for (const [title, count] of [...byBook.entries()].sort((a, b) => b[1] - a[1])) {
+      const empty = document.createElement("div");
+      empty.className = "hl-empty";
+      empty.textContent = "No matching highlights found.";
+      bookList.appendChild(empty);
+      updateSyncEnabled();
+      return;
+    }
+
+    const sorted = [...byBook.entries()].sort((a, b) => b[1].length - a[1].length);
+    for (const [title, bookRows] of sorted) {
+      const details = document.createElement("details");
+      details.className = "book";
+
+      const summary = document.createElement("summary");
+      const t = document.createElement("span");
+      t.className = "book-title";
+      t.textContent = title;
+      const c = document.createElement("span");
+      c.className = "count";
+      c.textContent = bookRows.length + (bookRows.length === 1 ? " highlight" : " highlights");
+      summary.append(t, c);
+      details.appendChild(summary);
+
+      const ul = document.createElement("ul");
+      ul.className = "hl-list";
+      for (const r of bookRows) {
         const li = document.createElement("li");
-        const t = document.createElement("span");
-        t.textContent = title;
-        const c = document.createElement("span");
-        c.className = "count";
-        c.textContent = count + (count === 1 ? " highlight" : " highlights");
-        li.append(t, c);
-        bookList.appendChild(li);
+        const txt = document.createElement("div");
+        txt.className = "hl-text";
+        txt.textContent = r.text; // textContent — never parsed as HTML
+        li.appendChild(txt);
+        if (r.note && String(r.note).trim()) {
+          const note = document.createElement("div");
+          note.className = "hl-note";
+          note.textContent = "Note: " + String(r.note).trim();
+          li.appendChild(note);
+        }
+        ul.appendChild(li);
       }
+      details.appendChild(ul);
+      bookList.appendChild(details);
     }
     updateSyncEnabled();
   }
