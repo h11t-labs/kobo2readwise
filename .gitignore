@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Tooling caches
+.ruff_cache/
+.pytest_cache/
+
+# OS
+.DS_Store

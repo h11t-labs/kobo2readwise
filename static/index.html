@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kobo2readwise</title>
+<meta name="description" content="Sync sideloaded Kobo highlights to Readwise, straight from your browser." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #1a1d21;
+    --muted: #5b6470;
+    --line: #e4e7eb;
+    --brand: #b3541e;      /* Kobo-ish warm accent */
+    --brand-ink: #ffffff;
+    --ok: #1a7f4b;
+    --err: #b3261e;
+    --radius: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --card: #1d2025;
+      --ink: #eceef1;
+      --muted: #9aa4b0;
+      --line: #2c313a;
+      --brand: #d9772f;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 40px 20px 64px; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header p { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 18px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--brand); color: var(--brand-ink);
+    font-size: 0.8rem; font-weight: 700; flex: none;
+  }
+  .card p.hint { color: var(--muted); font-size: 0.92rem; margin: 4px 0 16px; }
+  .card[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: none; border-radius: 10px; padding: 11px 18px;
+    background: var(--brand); color: var(--brand-ink);
+    transition: filter .15s ease, transform .02s ease;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:active { transform: translateY(1px); }
+  button:disabled { cursor: not-allowed; filter: grayscale(0.6) brightness(0.9); }
+  button.secondary { background: transparent; color: var(--brand); border: 1px solid var(--brand); }
+  input[type="password"], input[type="text"] {
+    font: inherit; width: 100%; padding: 11px 12px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink);
+  }
+  input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  label.row { display: flex; align-items: center; gap: 9px; margin: 14px 0 4px; font-size: 0.94rem; cursor: pointer; }
+  a { color: var(--brand); }
+  .summary { display: flex; gap: 22px; margin: 4px 0 14px; }
+  .summary .num { font-size: 1.6rem; font-weight: 700; line-height: 1; }
+  .summary .lbl { color: var(--muted); font-size: 0.82rem; }
+  .booklist { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .booklist li { padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 0.9rem; display: flex; justify-content: space-between; gap: 12px; }
+  .booklist li:last-child { border-bottom: none; }
+  .booklist .count { color: var(--muted); flex: none; }
+  .status { margin-top: 14px; font-size: 0.95rem; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .banner {
+    border-radius: var(--radius); padding: 18px 20px; margin-bottom: 22px;
+    background: #fdecea; color: #7a1c16; border: 1px solid #f3c0bb;
+  }
+  @media (prefers-color-scheme: dark) {
+    .banner { background: #3a1e1c; color: #f3c0bb; border-color: #5a2c28; }
+  }
+  .banner strong { display: block; margin-bottom: 4px; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; margin-right: 7px;
+    border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 30px; }
+  footer a { text-decoration: none; }
+  .hidden { display: none !important; }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>kobo2readwise</h1>
+    <p>Sync highlights from sideloaded Kobo books to Readwise.</p>
+  </header>
+
+  <!-- Unsupported-browser banner (shown by JS when the File System Access API is missing) -->
+  <div id="unsupported" class="banner hidden">
+    <strong>This browser isn't supported.</strong>
+    kobo2readwise reads your Kobo database locally using the File System Access API,
+    which today only works in <b>Chrome or Edge on desktop</b>. Please reopen this page there.
+    Firefox, Safari and mobile browsers can't run it.
+  </div>
+
+  <!-- Explainer -->
+  <div id="app" class="hidden">
+    <div class="card">
+      <p class="hint" style="margin:0">
+        Highlights from books you sideloaded onto your Kobo (via Calibre, email or USB)
+        live only in the device's local <code>KoboReader.sqlite</code> — Readwise can't fetch
+        them automatically. This tool reads that file <b>in your browser</b> and forwards the
+        highlights to Readwise through a thin proxy that <b>never stores or logs your token</b>.
+        Store, Kobo&nbsp;Plus and library books already sync via Readwise's own integration.
+      </p>
+    </div>
+
+    <!-- Step 1: pick the database -->
+    <div class="card" id="card-db">
+      <h2><span class="step-num">1</span> Open your Kobo database</h2>
+      <p class="hint">
+        Plug in your Kobo, then pick <code>KoboReader.sqlite</code> from the hidden
+        <code>.kobo</code> folder on the device. The file is read locally and never uploaded.
+      </p>
+      <button id="pick-btn">Choose KoboReader.sqlite…</button>
+      <div id="db-status" class="status"></div>
+    </div>
+
+    <!-- Step 2: review -->
+    <div class="card" id="card-review" aria-disabled="true">
+      <h2><span class="step-num">2</span> Review highlights</h2>
+      <div class="summary">
+        <div><div class="num" id="n-highlights">0</div><div class="lbl">highlights</div></div>
+        <div><div class="num" id="n-books">0</div><div class="lbl">books</div></div>
+      </div>
+      <label class="row">
+        <input type="checkbox" id="sideloaded-only" checked />
+        Only sideloaded books (recommended — avoids duplicating store/library syncs)
+      </label>
+      <ul class="booklist" id="booklist"></ul>
+    </div>
+
+    <!-- Step 3: sync -->
+    <div class="card" id="card-sync" aria-disabled="true">
+      <h2><span class="step-num">3</span> Send to Readwise</h2>
+      <p class="hint">
+        Paste your Readwise access token from
+        <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
+        It's sent once to Readwise via our proxy and immediately forgotten.
+      </p>
+      <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
+      <label class="row" style="margin-top:12px">
+        <input type="checkbox" id="show-token" /> Show token
+      </label>
+      <div style="margin-top:14px">
+        <button id="sync-btn" disabled>Sync to Readwise</button>
+      </div>
+      <div id="sync-status" class="status"></div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://github.com/kobo2readwise/kobo2readwise" target="_blank" rel="noopener">source on GitHub</a>
+    · your token is never stored or logged
+    · <span id="version">v–</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1/dist/sql-wasm.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // --- Browser support gate -------------------------------------------------
+  const supported = "showOpenFilePicker" in window;
+  document.getElementById(supported ? "app" : "unsupported").classList.remove("hidden");
+  if (!supported) return;
+
+  // --- Element handles ------------------------------------------------------
+  const el = (id) => document.getElementById(id);
+  const pickBtn = el("pick-btn");
+  const dbStatus = el("db-status");
+  const cardReview = el("card-review");
+  const cardSync = el("card-sync");
+  const nHighlights = el("n-highlights");
+  const nBooks = el("n-books");
+  const bookList = el("booklist");
+  const sideloadedOnly = el("sideloaded-only");
+  const tokenInput = el("token");
+  const showToken = el("show-token");
+  const syncBtn = el("sync-btn");
+  const syncStatus = el("sync-status");
+
+  let allRows = [];   // every highlight row read from the DB
+
+  // --- Version in footer ----------------------------------------------------
+  fetch("/healthz").then((r) => r.json()).then((d) => {
+    if (d && d.version) el("version").textContent = "v" + d.version;
+  }).catch(() => {});
+
+  // --- Helpers --------------------------------------------------------------
+  function isSideloaded(volumeId) {
+    return typeof volumeId === "string" && volumeId.startsWith("file://");
+  }
+
+  function titleFromVolume(volumeId) {
+    try {
+      const name = decodeURIComponent(String(volumeId).split("/").pop() || "");
+      return name.replace(/\.(epub|pdf|kepub|mobi|azw3?|cbz)$/i, "") || "Unknown title";
+    } catch {
+      return "Unknown title";
+    }
+  }
+
+  function toIso(dateCreated) {
+    if (!dateCreated) return undefined;
+    // Kobo stores e.g. "2021-05-03T12:34:56.000" (no timezone). Treat as UTC.
+    let s = String(dateCreated).trim();
+    if (!/[zZ]|[+-]\d\d:?\d\d$/.test(s)) s = s.replace(" ", "T") + "Z";
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+
+  function selectedRows() {
+    return sideloadedOnly.checked ? allRows.filter((r) => isSideloaded(r.volumeId)) : allRows;
+  }
+
+  function bookTitle(row) {
+    return (row.title && row.title.trim()) || titleFromVolume(row.volumeId);
+  }
+
+  function toReadwise(row) {
+    const h = {
+      text: row.text,
+      title: bookTitle(row),
+      source_type: "kobo",
+      category: "books",
+    };
+    if (row.author && row.author.trim()) h.author = row.author.trim();
+    if (row.note && row.note.trim()) h.note = row.note.trim();
+    const at = toIso(row.dateCreated);
+    if (at) h.highlighted_at = at;
+    return h;
+  }
+
+  // --- Render the review panel from current selection -----------------------
+  function renderReview() {
+    const rows = selectedRows();
+    const byBook = new Map();
+    for (const r of rows) {
+      const key = bookTitle(r);
+      byBook.set(key, (byBook.get(key) || 0) + 1);
+    }
+    nHighlights.textContent = rows.length;
+    nBooks.textContent = byBook.size;
+
+    bookList.innerHTML = "";
+    if (byBook.size === 0) {
+      const li = document.createElement("li");
+      li.textContent = "No matching highlights found.";
+      bookList.appendChild(li);
+    } else {
+      for (const [title, count] of [...byBook.entries()].sort((a, b) => b[1] - a[1])) {
+        const li = document.createElement("li");
+        const t = document.createElement("span");
+        t.textContent = title;
+        const c = document.createElement("span");
+        c.className = "count";
+        c.textContent = count + (count === 1 ? " highlight" : " highlights");
+        li.append(t, c);
+        bookList.appendChild(li);
+      }
+    }
+    syncBtn.disabled = rows.length === 0 || tokenInput.value.trim() === "";
+  }
+
+  // --- Step 1: read the database --------------------------------------------
+  pickBtn.addEventListener("click", async () => {
+    dbStatus.className = "status";
+    dbStatus.textContent = "";
+    let file;
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: "Kobo database", accept: { "application/octet-stream": [".sqlite"] } }],
+        excludeAcceptAllOption: false,
+      });
+      file = await handle.getFile();
+    } catch (e) {
+      if (e && e.name === "AbortError") return; // user cancelled
+      dbStatus.className = "status err";
+      dbStatus.textContent = "Couldn't open the file: " + (e && e.message ? e.message : e);
+      return;
+    }
+
+    dbStatus.innerHTML = '<span class="spinner"></span>Reading database…';
+    try {
+      const SQL = await initSqlJs({
+        locateFile: (f) => "https://cdn.jsdelivr.net/npm/sql.js@1/dist/" + f,
+      });
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const db = new SQL.Database(buf);
+      const res = db.exec(
+        "SELECT b.Text AS text, b.Annotation AS note, b.DateCreated AS dateCreated, " +
+        "b.VolumeID AS volumeId, c.Title AS title, c.Attribution AS author " +
+        "FROM Bookmark b LEFT JOIN content c ON c.ContentID = b.VolumeID " +
+        "WHERE b.Text IS NOT NULL AND TRIM(b.Text) <> '' " +
+        "ORDER BY b.VolumeID, b.DateCreated"
+      );
+      db.close();
+
+      allRows = [];
+      if (res.length) {
+        const cols = res[0].columns;
+        for (const v of res[0].values) {
+          const row = {};
+          cols.forEach((c, i) => { row[c] = v[i]; });
+          allRows.push(row);
+        }
+      }
+
+      if (allRows.length === 0) {
+        dbStatus.className = "status err";
+        dbStatus.textContent = "No highlights found in this database.";
+        return;
+      }
+      dbStatus.className = "status ok";
+      dbStatus.textContent = "Loaded " + allRows.length + " highlights from " + file.name + ".";
+      cardReview.setAttribute("aria-disabled", "false");
+      cardSync.setAttribute("aria-disabled", "false");
+      renderReview();
+    } catch (e) {
+      dbStatus.className = "status err";
+      dbStatus.textContent =
+        "Couldn't read this file. Is it really a KoboReader.sqlite? (" +
+        (e && e.message ? e.message : e) + ")";
+    }
+  });
+
+  // --- Wiring ---------------------------------------------------------------
+  sideloadedOnly.addEventListener("change", renderReview);
+  tokenInput.addEventListener("input", () => {
+    syncBtn.disabled = selectedRows().length === 0 || tokenInput.value.trim() === "";
+  });
+  showToken.addEventListener("change", () => {
+    tokenInput.type = showToken.checked ? "text" : "password";
+  });
+
+  // --- Step 3: sync ---------------------------------------------------------
+  syncBtn.addEventListener("click", async () => {
+    const token = tokenInput.value.trim();
+    const highlights = selectedRows().map(toReadwise);
+    if (!token || highlights.length === 0) return;
+
+    syncBtn.disabled = true;
+    syncStatus.className = "status";
+    syncStatus.innerHTML = '<span class="spinner"></span>Syncing ' + highlights.length + " highlights…";
+
+    try {
+      const resp = await fetch("/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, highlights }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) {
+        syncStatus.className = "status ok";
+        syncStatus.textContent = "✓ Synced " + (data.synced ?? highlights.length) +
+          " highlights to Readwise.";
+      } else {
+        syncStatus.className = "status err";
+        syncStatus.textContent = "Sync failed: " + (data.detail || ("HTTP " + resp.status));
+      }
+    } catch (e) {
+      syncStatus.className = "status err";
+      syncStatus.textContent = "Sync failed: " + (e && e.message ? e.message : e);
+    } finally {
+      syncBtn.disabled = selectedRows().length === 0 || tokenInput.value.trim() === "";
+    }
+  });
+})();
+</script>
+</body>
+</html>
