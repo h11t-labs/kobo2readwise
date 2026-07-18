@@ -81,6 +81,21 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
     )
 
 
+@app.middleware("http")
+async def _revalidate_html(request: Request, call_next):
+    """Make browsers revalidate HTML so a deploy never serves a stale page.
+
+    Static assets are otherwise heuristically cached by the browser, which can
+    pin an old index.html after an update. ``no-cache`` still allows efficient
+    304s — it just forbids using the cache without checking first.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 class SyncRequest(BaseModel):
     token: str = Field(default="")
     highlights: list[dict] = Field(default_factory=list)

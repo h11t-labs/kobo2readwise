@@ -35,6 +35,12 @@ def test_about_page_served():
     assert "About" in resp.text
 
 
+def test_html_revalidates():
+    # HTML must not be served stale from cache after a deploy.
+    assert client.get("/").headers.get("cache-control") == "no-cache"
+    assert client.get("/about.html").headers.get("cache-control") == "no-cache"
+
+
 def test_sync_without_token_is_400():
     resp = client.post("/sync", json={"highlights": [{"text": "hello"}]})
     assert resp.status_code == 400
