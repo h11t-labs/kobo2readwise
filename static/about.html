@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>About &amp; Help · kobo2readwise</title>
+<meta name="description" content="What kobo2readwise is, how it works, how to use it, and what happens to your data." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      media="print" onload="this.media='all'" />
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1a1d21; --muted: #5b6470; --line: #e4e7eb;
+    --brand: #b3541e; --ok: #1a7f4b;
+    --radius: 14px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1d2025; --ink: #eceef1; --muted: #9aa4b0; --line: #2c313a;
+      --brand: #d9772f; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 40px 20px 64px; }
+  .back { display: inline-block; margin-bottom: 18px; font-size: 0.9rem; color: var(--brand); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  header h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header p.lede { color: var(--muted); margin: 0 0 24px; font-size: 1.05rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 16px;
+  }
+  h2 { font-size: 1.15rem; margin: 0 0 10px; }
+  h3 { font-size: 1rem; margin: 18px 0 6px; }
+  p { margin: 8px 0; }
+  a { color: var(--brand); }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 0.85em; }
+  .trust { border-color: var(--brand); }
+  .trust h2 { color: var(--brand); }
+  .pill { display: inline-block; background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+          padding: 3px 11px; font-size: 0.82rem; font-weight: 600; margin: 2px 4px 2px 0; }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps li { position: relative; padding-left: 40px; margin: 14px 0; }
+  .steps li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700;
+  }
+  footer { text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 28px; line-height: 1.9; }
+  footer a { text-decoration: none; color: var(--brand); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Back to the app</a>
+
+  <header>
+    <h1>About &amp; Help</h1>
+    <p class="lede">kobo2readwise gets highlights out of your sideloaded Kobo books and into Readwise.</p>
+  </header>
+
+  <div class="card">
+    <h2>What it is</h2>
+    <p>
+      When you sideload a book onto a Kobo — an EPUB or PDF added through
+      <a href="https://calibre-ebook.com/" target="_blank" rel="noopener">Calibre</a>, email, or a USB cable —
+      the highlights you make in it are saved <strong>only on the device</strong>, in a local database file
+      called <code>KoboReader.sqlite</code>. They never reach Kobo's cloud, so
+      <a href="https://readwise.io" target="_blank" rel="noopener">Readwise</a>'s automatic Kobo sync can't see them.
+    </p>
+    <p>
+      kobo2readwise bridges that gap. It reads <code>KoboReader.sqlite</code> right in your browser and sends
+      those highlights to your Readwise account. No app to install, nothing to configure on the device.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>What's in scope (and what isn't)</h2>
+    <p><strong>In scope:</strong> highlights from books <em>you</em> put on the Kobo yourself (sideloaded EPUB/PDF).</p>
+    <p>
+      <strong>Not needed here:</strong> books from the Kobo store, Kobo&nbsp;Plus, or library loans (OverDrive).
+      Those already sync to Readwise through
+      <a href="https://readwise.io/kobo_sync" target="_blank" rel="noopener">Readwise's own Kobo integration</a> —
+      kobo2readwise deliberately leaves them alone (and offers a "sideloaded only" filter so you don't create duplicates).
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <ul>
+      <li>Your browser opens <code>KoboReader.sqlite</code> locally using the
+        <a href="https://developer.mozilla.org/en-US/docs/Web/API/File_System_API" target="_blank" rel="noopener">File System Access API</a>
+        — the file is <strong>never uploaded</strong>.</li>
+      <li>It's parsed in-page with <a href="https://sql.js.org" target="_blank" rel="noopener">sql.js</a> (SQLite compiled to WebAssembly).</li>
+      <li>The highlights are formatted for Readwise and posted through a thin server-side proxy — needed only because
+        the Readwise API can't be called directly from a browser.</li>
+    </ul>
+  </div>
+
+  <div class="card trust">
+    <h2>Your data &amp; your token</h2>
+    <p>
+      The proxy exists for one reason — to relay the request to Readwise — and it is built to forget:
+    </p>
+    <ul>
+      <li>Your Readwise token is forwarded to Readwise and <strong>never stored, cached, or logged</strong>.</li>
+      <li>There is <strong>no database and no request-body logging</strong> on the server.</li>
+      <li>Your Kobo database and highlights are processed <strong>in your browser</strong>; the file itself never leaves your computer.</li>
+      <li>The whole thing is open source — you can read exactly what the proxy does.</li>
+    </ul>
+    <p><a href="https://github.com/h11t-labs/kobo2readwise/blob/main/app.py" target="_blank" rel="noopener">See the proxy source (app.py) →</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Requirements</h2>
+    <p>The File System Access API only exists in a couple of desktop browsers, so kobo2readwise needs one of:</p>
+    <p>
+      <span class="pill">Chrome — desktop</span>
+      <span class="pill">Edge — desktop</span>
+    </p>
+    <p style="color:var(--muted)">Firefox, Safari, and phone/tablet browsers can't run it. This is a hard browser limitation, not a choice we can work around.</p>
+  </div>
+
+  <div class="card">
+    <h2>How to use it</h2>
+    <ol class="steps">
+      <li>Connect your Kobo to your computer with a USB cable and let it mount as a drive.</li>
+      <li>On that drive, open the hidden <code>.kobo</code> folder and find <code>KoboReader.sqlite</code>.
+        (Tip: if you don't see hidden folders, enable "show hidden files" in your file manager. You can also copy the file to your Desktop first.)</li>
+      <li>Back on the app, click <strong>Choose KoboReader.sqlite…</strong> and select that file.</li>
+      <li>Review the highlights it found. Keep <strong>Only sideloaded books</strong> checked unless you know you want everything.</li>
+      <li>Paste your Readwise access token from
+        <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>
+        and click <strong>Sync to Readwise</strong>.</li>
+    </ol>
+    <h3>Troubleshooting</h3>
+    <ul>
+      <li><strong>"No highlights found"</strong> — the database has no text highlights, or they're all from store/library books while the sideloaded filter is on. Try unchecking the filter.</li>
+      <li><strong>"Readwise rejected the token"</strong> — double-check you copied the full token from the access-token page.</li>
+      <li><strong>The library couldn't load</strong> — an ad blocker or restrictive network may be blocking the CDN that hosts sql.js; allow <code>cdn.jsdelivr.net</code> and retry.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <a href="/">Back to the app</a>
+    · <a href="https://github.com/h11t-labs/kobo2readwise" target="_blank" rel="noopener">Source on GitHub</a>
+    · by <a href="https://github.com/h11t-labs" target="_blank" rel="noopener">h11t-labs</a>
+  </footer>
+</div>
+</body>
+</html>
