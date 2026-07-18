@@ -23,6 +23,18 @@ def test_healthz_ok():
     assert "version" in body
 
 
+def test_index_served():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "kobo2readwise" in resp.text
+
+
+def test_about_page_served():
+    resp = client.get("/about.html")
+    assert resp.status_code == 200
+    assert "About" in resp.text
+
+
 def test_sync_without_token_is_400():
     resp = client.post("/sync", json={"highlights": [{"text": "hello"}]})
     assert resp.status_code == 400
