@@ -26,10 +26,12 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 READWISE_URL = "https://readwise.io/api/v2/highlights/"
+READWISE_AUTH_URL = "https://readwise.io/api/v2/auth/"
 BATCH_SIZE = 100
-# Configurable so tests / self-hosters can tune it; defaults to a gentle
-# per-IP limit that protects against abuse and runaway egress costs.
+# Configurable so tests / self-hosters can tune it; defaults to gentle per-IP
+# limits that protect against abuse and runaway egress costs.
 SYNC_RATE_LIMIT = os.environ.get("SYNC_RATE_LIMIT", "10/hour")
+VERIFY_RATE_LIMIT = os.environ.get("VERIFY_RATE_LIMIT", "30/hour")
 STATIC_DIR = Path(__file__).parent / "static"
 
 
@@ -101,9 +103,35 @@ class SyncRequest(BaseModel):
     highlights: list[dict] = Field(default_factory=list)
 
 
+class VerifyRequest(BaseModel):
+    token: str = Field(default="")
+
+
 @app.get("/healthz")
 async def healthz() -> dict:
     return {"status": "ok", "version": __version__}
+
+
+@app.post("/verify")
+@limiter.limit(VERIFY_RATE_LIMIT)
+async def verify(request: Request, payload: VerifyRequest) -> dict:
+    """Check a Readwise token against Readwise's auth endpoint (204 == valid).
+
+    Lets the UI show a "Connected" state before syncing. Like /sync, the token
+    is forwarded to Readwise and then forgotten — never logged or stored.
+    """
+    token = payload.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing Readwise token.")
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(READWISE_AUTH_URL, headers={"Authorization": f"Token {token}"})
+    if resp.status_code == 204:
+        return {"valid": True}
+    if resp.status_code == 401:
+        return {"valid": False}
+    raise HTTPException(
+        status_code=502, detail=f"Couldn't reach Readwise (HTTP {resp.status_code})."
+    )
 
 
 @app.post("/sync")

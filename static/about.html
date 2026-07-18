@@ -112,9 +112,10 @@
       The proxy exists for one reason — to relay the request to Readwise — and it is built to forget:
     </p>
     <ul>
-      <li>Your Readwise token is forwarded to Readwise and <strong>never stored, cached, or logged</strong>.</li>
+      <li>Your Readwise token is forwarded to Readwise and <strong>never stored, cached, or logged on the server</strong>.</li>
       <li>There is <strong>no database and no request-body logging</strong> on the server.</li>
       <li>Your Kobo database and highlights are processed <strong>in your browser</strong>; the file itself never leaves your computer.</li>
+      <li><strong>"Remember on this device"</strong> is optional: if you tick it, your token is saved only in <em>this browser's</em> local storage — never on the server. Click <strong>Disconnect</strong> to erase it, and leave it unticked on a shared computer.</li>
       <li>The whole thing is open source — you can read exactly what the proxy does.</li>
     </ul>
     <p><a href="https://github.com/h11t-labs/kobo2readwise/blob/main/app.py" target="_blank" rel="noopener">See the proxy source (app.py) →</a></p>
@@ -139,8 +140,8 @@
       <li>Back on the app, click <strong>Choose KoboReader.sqlite…</strong> and select that file.</li>
       <li>Review the highlights it found. Keep <strong>Only sideloaded books</strong> checked unless you know you want everything.</li>
       <li>Paste your Readwise access token from
-        <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>
-        and click <strong>Sync to Readwise</strong>.</li>
+        <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>,
+        click <strong>Connect to Readwise</strong> to verify it, then <strong>Sync to Readwise</strong>.</li>
     </ol>
     <h3>Troubleshooting</h3>
     <ul>

@@ -138,6 +138,18 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   footer { text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 30px; line-height: 1.9; }
   footer a { text-decoration: none; }
+  .controls { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px; }
+  .controls label.row { margin: 0; }
+  .connected-badge { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .connected-badge .dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--ok);
+    box-shadow: 0 0 0 3px rgba(26,127,75,.18); flex: none;
+  }
+  .linkbtn {
+    background: none; border: none; padding: 0; margin-left: auto; cursor: pointer;
+    color: var(--muted); font-weight: 500; font-size: 0.88rem; text-decoration: underline;
+  }
+  .linkbtn:hover { color: var(--err); filter: none; }
   .hidden { display: none !important; }
   code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 0.85em; }
 </style>
@@ -180,7 +192,7 @@
         Highlights from books you sideloaded onto your Kobo (via Calibre, email or USB)
         live only in the device's local <code>KoboReader.sqlite</code> — Readwise can't fetch
         them automatically. This tool reads that file <b>in your browser</b> and forwards the
-        highlights to Readwise through a thin proxy that <b>never stores or logs your token</b>.
+        highlights to Readwise through a thin proxy that <b>never stores or logs your token on our server</b>.
         Store, Kobo&nbsp;Plus and library books already sync via Readwise's own integration.
         New here? <a href="/about.html">Read the full how-it-works &amp; help</a>.
       </p>
@@ -211,22 +223,42 @@
       <ul class="booklist" id="booklist"></ul>
     </div>
 
-    <!-- Step 3: sync -->
-    <div class="card" id="card-sync" aria-disabled="true">
-      <h2><span class="step-num">3</span> Send to Readwise</h2>
-      <p class="hint">
-        Paste your Readwise access token from
-        <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
-        It's sent once to Readwise via our proxy and immediately forgotten.
-      </p>
-      <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
-      <label class="row" style="margin-top:12px">
-        <input type="checkbox" id="show-token" /> Show token
-      </label>
-      <div style="margin-top:14px">
-        <button id="sync-btn" disabled>Sync to Readwise</button>
+    <!-- Step 3: connect + sync -->
+    <div class="card" id="card-sync">
+      <h2><span class="step-num">3</span> Connect Readwise &amp; sync</h2>
+
+      <!-- Not connected -->
+      <div id="connect-panel">
+        <p class="hint">
+          Paste your Readwise access token from
+          <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
+          We check it with Readwise now, and forward it only when you sync —
+          it's <b>never stored on our server</b>.
+        </p>
+        <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
+        <div class="controls">
+          <label class="row"><input type="checkbox" id="show-token" /> Show token</label>
+          <label class="row"><input type="checkbox" id="remember-token" checked /> Remember on this device</label>
+        </div>
+        <div style="margin-top:14px">
+          <button id="connect-btn" disabled>Connect to Readwise</button>
+        </div>
+        <div id="connect-status" class="status"></div>
       </div>
-      <div id="sync-status" class="status"></div>
+
+      <!-- Connected -->
+      <div id="connected-panel" class="hidden">
+        <div class="connected-badge">
+          <span class="dot" aria-hidden="true"></span>
+          <span>Connected to Readwise</span>
+          <button id="disconnect-btn" class="linkbtn" type="button">Disconnect</button>
+        </div>
+        <div style="margin-top:16px">
+          <button id="sync-btn" disabled>Sync to Readwise</button>
+          <p class="hint" id="sync-hint" style="margin:10px 0 0">Load your Kobo database above to enable syncing.</p>
+        </div>
+        <div id="sync-status" class="status"></div>
+      </div>
     </div>
   </div>
 
@@ -234,7 +266,7 @@
     <a href="/about.html">About &amp; Help</a>
     · <a href="https://github.com/h11t-labs/kobo2readwise" target="_blank" rel="noopener">Source on GitHub</a>
     · by <a href="https://github.com/h11t-labs" target="_blank" rel="noopener">h11t-labs</a><br />
-    your token is never stored or logged · <span id="version">v–</span>
+    your token is never stored or logged on our server · <span id="version">v–</span>
   </footer>
 </div>
 
@@ -264,17 +296,25 @@
   const pickBtn = el("pick-btn");
   const dbStatus = el("db-status");
   const cardReview = el("card-review");
-  const cardSync = el("card-sync");
   const nHighlights = el("n-highlights");
   const nBooks = el("n-books");
   const bookList = el("booklist");
   const sideloadedOnly = el("sideloaded-only");
   const tokenInput = el("token");
   const showToken = el("show-token");
+  const rememberToken = el("remember-token");
+  const connectBtn = el("connect-btn");
+  const connectStatus = el("connect-status");
+  const connectPanel = el("connect-panel");
+  const connectedPanel = el("connected-panel");
+  const disconnectBtn = el("disconnect-btn");
   const syncBtn = el("sync-btn");
+  const syncHint = el("sync-hint");
   const syncStatus = el("sync-status");
 
-  let allRows = [];   // every highlight row read from the DB
+  const TOKEN_KEY = "k2r_token";
+  let allRows = [];          // every highlight row read from the DB
+  let connectedToken = null; // set once the token is verified with Readwise
 
   // --- Version in footer ----------------------------------------------------
   fetch("/healthz").then((r) => r.json()).then((d) => {
@@ -371,7 +411,7 @@
         bookList.appendChild(li);
       }
     }
-    syncBtn.disabled = rows.length === 0 || tokenInput.value.trim() === "";
+    updateSyncEnabled();
   }
 
   // --- Step 1: read the database --------------------------------------------
@@ -424,7 +464,6 @@
       dbStatus.className = "status ok";
       dbStatus.textContent = "Loaded " + allRows.length + " highlights from " + file.name + ".";
       cardReview.setAttribute("aria-disabled", "false");
-      cardSync.setAttribute("aria-disabled", "false");
       renderReview();
     } catch (e) {
       dbStatus.className = "status err";
@@ -434,20 +473,96 @@
     }
   });
 
+  // --- Sync-button enablement ----------------------------------------------
+  function updateSyncEnabled() {
+    const hasHighlights = selectedRows().length > 0;
+    syncBtn.disabled = !connectedToken || !hasHighlights;
+    if (syncHint) syncHint.classList.toggle("hidden", hasHighlights);
+  }
+
+  // --- Connection state -----------------------------------------------------
+  function setConnected(token) {
+    connectedToken = token;
+    connectPanel.classList.add("hidden");
+    connectedPanel.classList.remove("hidden");
+    updateSyncEnabled();
+  }
+
+  function setDisconnected() {
+    connectedToken = null;
+    connectedPanel.classList.add("hidden");
+    connectPanel.classList.remove("hidden");
+    syncStatus.textContent = "";
+    syncStatus.className = "status";
+  }
+
+  async function connect(token, fromStorage) {
+    if (!token) return;
+    connectBtn.disabled = true;
+    connectStatus.className = "status";
+    connectStatus.innerHTML =
+      '<span class="spinner"></span>' + (fromStorage ? "Reconnecting…" : "Checking your token…");
+    try {
+      const resp = await fetch("/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.valid) {
+        connectStatus.textContent = "";
+        try {
+          if (rememberToken.checked) localStorage.setItem(TOKEN_KEY, token);
+        } catch { /* storage may be unavailable */ }
+        setConnected(token);
+      } else if (resp.ok) {
+        if (fromStorage) { try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } }
+        connectStatus.className = "status err";
+        connectStatus.textContent = "That token wasn't accepted by Readwise.";
+        connectBtn.disabled = tokenInput.value.trim() === "";
+      } else {
+        connectStatus.className = "status err";
+        connectStatus.textContent = data.detail || ("Couldn't verify token (HTTP " + resp.status + ").");
+        connectBtn.disabled = tokenInput.value.trim() === "";
+      }
+    } catch (e) {
+      connectStatus.className = "status err";
+      connectStatus.textContent = "Couldn't reach the server: " + (e && e.message ? e.message : e);
+      connectBtn.disabled = tokenInput.value.trim() === "";
+    }
+  }
+
   // --- Wiring ---------------------------------------------------------------
   sideloadedOnly.addEventListener("change", renderReview);
-  tokenInput.addEventListener("input", () => {
-    syncBtn.disabled = selectedRows().length === 0 || tokenInput.value.trim() === "";
-  });
   showToken.addEventListener("change", () => {
     tokenInput.type = showToken.checked ? "text" : "password";
   });
+  tokenInput.addEventListener("input", () => {
+    connectBtn.disabled = tokenInput.value.trim() === "";
+  });
+  tokenInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && tokenInput.value.trim()) connect(tokenInput.value.trim(), false);
+  });
+  rememberToken.addEventListener("change", () => {
+    try {
+      if (!rememberToken.checked) localStorage.removeItem(TOKEN_KEY);
+      else if (connectedToken) localStorage.setItem(TOKEN_KEY, connectedToken);
+    } catch { /* ignore */ }
+  });
+  connectBtn.addEventListener("click", () => connect(tokenInput.value.trim(), false));
+  disconnectBtn.addEventListener("click", () => {
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+    tokenInput.value = "";
+    connectBtn.disabled = true;
+    connectStatus.textContent = "";
+    connectStatus.className = "status";
+    setDisconnected();
+  });
 
-  // --- Step 3: sync ---------------------------------------------------------
+  // --- Sync -----------------------------------------------------------------
   syncBtn.addEventListener("click", async () => {
-    const token = tokenInput.value.trim();
     const highlights = selectedRows().map(toReadwise);
-    if (!token || highlights.length === 0) return;
+    if (!connectedToken || highlights.length === 0) return;
 
     syncBtn.disabled = true;
     syncStatus.className = "status";
@@ -457,13 +572,18 @@
       const resp = await fetch("/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, highlights }),
+        body: JSON.stringify({ token: connectedToken, highlights }),
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
         syncStatus.className = "status ok";
-        syncStatus.textContent = "✓ Synced " + (data.synced ?? highlights.length) +
-          " highlights to Readwise.";
+        syncStatus.textContent =
+          "✓ Synced " + (data.synced ?? highlights.length) + " highlights to Readwise.";
+      } else if (resp.status === 401) {
+        try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+        setDisconnected();
+        connectStatus.className = "status err";
+        connectStatus.textContent = "Readwise rejected the token — please reconnect.";
       } else {
         syncStatus.className = "status err";
         syncStatus.textContent = "Sync failed: " + (data.detail || ("HTTP " + resp.status));
@@ -472,9 +592,21 @@
       syncStatus.className = "status err";
       syncStatus.textContent = "Sync failed: " + (e && e.message ? e.message : e);
     } finally {
-      syncBtn.disabled = selectedRows().length === 0 || tokenInput.value.trim() === "";
+      updateSyncEnabled();
     }
   });
+
+  // --- Auto-reconnect from a remembered token -------------------------------
+  (function restoreToken() {
+    let saved = null;
+    try { saved = localStorage.getItem(TOKEN_KEY); } catch { /* ignore */ }
+    if (saved) {
+      tokenInput.value = saved;
+      rememberToken.checked = true;
+      connectBtn.disabled = false;
+      connect(saved, true);
+    }
+  })();
 })();
 </script>
 </body>
