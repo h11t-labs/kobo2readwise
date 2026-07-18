@@ -56,7 +56,14 @@
   header { text-align: center; margin-bottom: 28px; }
   header h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; }
   header p { color: var(--muted); margin: 0; font-size: 1.02rem; }
-  header .toplink { display: inline-block; margin-top: 12px; font-size: 0.9rem; }
+  header .toplink {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
+    font-size: 0.88rem; font-weight: 600; text-decoration: none; color: var(--muted);
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+    transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  header .toplink:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--shadow); }
+  header .toplink svg { width: 15px; height: 15px; }
   .lede { text-align: center; color: var(--muted); font-size: 0.95rem; margin: -6px auto 24px; max-width: 48ch; }
   .card {
     background: var(--card);
@@ -174,7 +181,14 @@
   <header>
     <h1>kobo2readwise</h1>
     <p>Sync highlights from sideloaded Kobo books to Readwise.</p>
-    <a class="toplink" href="/about.html">About &amp; Help</a>
+    <a class="toplink" href="/about.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      About &amp; Help
+    </a>
   </header>
 
   <!-- Unsupported-browser notice (shown by JS when the File System Access API is missing) -->
