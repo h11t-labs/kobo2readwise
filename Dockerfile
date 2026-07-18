@@ -1,5 +1,5 @@
-# Build on Astral's uv image (Python 3.12, Debian slim).
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+# Build on Astral's uv image (Python 3.14, Debian slim).
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 # uv tuning: use the copy link mode and don't try to manage Python itself.
 ENV UV_COMPILE_BYTECODE=1 \

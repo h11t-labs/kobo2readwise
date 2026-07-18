@@ -29,7 +29,7 @@ trust model of the app — see [`app.py`](app.py).
 
 ## Run it locally
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+.
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.14+.
 
 ```bash
 uv sync
