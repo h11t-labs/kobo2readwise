@@ -222,7 +222,8 @@
   <!-- App (shown by JS when supported) -->
   <div id="app" class="hidden">
     <p class="lede">
-      Everything runs in your browser — your Readwise token is never stored on our server.
+      Your Kobo file is read in your browser and never uploaded. Your token passes through
+      our proxy only to verify and sync — never stored on our server.
     </p>
 
     <!-- Step 1: pick the database -->
@@ -280,7 +281,7 @@
           <p class="hint">
             Paste your token from
             <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
-            We check it, and only forward it when you sync — <b>never stored on our server</b>.
+            We send it to Readwise to check it and to sync — <b>never stored on our server</b>.
           </p>
           <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
           <div class="controls">
@@ -436,11 +437,13 @@
   // --- Render the review panel from current selection -----------------------
   function renderReview() {
     const rows = selectedRows();
-    const byBook = new Map(); // title -> rows[]
+    // Group by VolumeID (the actual book), not title — two different books can
+    // share a title, and merging them would miscount books.
+    const byBook = new Map(); // volumeId -> { title, rows: [] }
     for (const r of rows) {
-      const key = bookTitle(r);
-      if (!byBook.has(key)) byBook.set(key, []);
-      byBook.get(key).push(r);
+      const key = r.volumeId || bookTitle(r);
+      if (!byBook.has(key)) byBook.set(key, { title: bookTitle(r), rows: [] });
+      byBook.get(key).rows.push(r);
     }
     nHighlights.textContent = rows.length;
     nBooks.textContent = byBook.size;
@@ -456,8 +459,8 @@
       return;
     }
 
-    const sorted = [...byBook.entries()].sort((a, b) => b[1].length - a[1].length);
-    for (const [title, bookRows] of sorted) {
+    const sorted = [...byBook.values()].sort((a, b) => b.rows.length - a.rows.length);
+    for (const { title, rows: bookRows } of sorted) {
       const details = document.createElement("details");
       details.className = "book";
 
@@ -493,6 +496,16 @@
     updateSyncEnabled();
   }
 
+  // Reset the review panel to its empty state (before a new load, and on failure).
+  function clearReview() {
+    allRows = [];
+    nHighlights.textContent = "0";
+    nBooks.textContent = "0";
+    reviewHint.classList.add("hidden");
+    bookList.innerHTML = '<div class="hl-empty">Load your Kobo database above to see highlights.</div>';
+    updateSyncEnabled();
+  }
+
   // --- Step 1: read the database --------------------------------------------
   pickBtn.addEventListener("click", async () => {
     dbStatus.className = "status";
@@ -512,38 +525,45 @@
     }
 
     dbStatus.innerHTML = '<span class="spinner"></span>Reading database…';
+    // Drop any previously loaded DB up front, so a failed or empty new load
+    // can't leave the old highlights visible and syncable.
+    clearReview();
     try {
       const SQL = await loadSqlJs();
       const buf = new Uint8Array(await file.arrayBuffer());
+      const rows = [];
       const db = new SQL.Database(buf);
-      const res = db.exec(
-        "SELECT b.Text AS text, b.Annotation AS note, b.DateCreated AS dateCreated, " +
-        "b.VolumeID AS volumeId, c.Title AS title, c.Attribution AS author " +
-        "FROM Bookmark b LEFT JOIN content c ON c.ContentID = b.VolumeID " +
-        "WHERE b.Text IS NOT NULL AND TRIM(b.Text) <> '' " +
-        "ORDER BY b.VolumeID, b.DateCreated"
-      );
-      db.close();
-
-      allRows = [];
-      if (res.length) {
-        const cols = res[0].columns;
-        for (const v of res[0].values) {
-          const row = {};
-          cols.forEach((c, i) => { row[c] = v[i]; });
-          allRows.push(row);
+      try {
+        const res = db.exec(
+          "SELECT b.Text AS text, b.Annotation AS note, b.DateCreated AS dateCreated, " +
+          "b.VolumeID AS volumeId, c.Title AS title, c.Attribution AS author " +
+          "FROM Bookmark b LEFT JOIN content c ON c.ContentID = b.VolumeID " +
+          "WHERE b.Text IS NOT NULL AND TRIM(b.Text) <> '' " +
+          "ORDER BY b.VolumeID, b.DateCreated"
+        );
+        if (res.length) {
+          const cols = res[0].columns;
+          for (const v of res[0].values) {
+            const row = {};
+            cols.forEach((c, i) => { row[c] = v[i]; });
+            rows.push(row);
+          }
         }
+      } finally {
+        db.close();
       }
 
-      if (allRows.length === 0) {
+      if (rows.length === 0) {
         dbStatus.className = "status err";
         dbStatus.textContent = "No highlights found in this database.";
-        return;
+        return; // allRows already cleared -> sync stays disabled
       }
+      allRows = rows;
       dbStatus.className = "status ok";
       dbStatus.textContent = "Loaded " + allRows.length + " highlights from " + file.name + ".";
       renderReview();
     } catch (e) {
+      clearReview();
       dbStatus.className = "status err";
       dbStatus.textContent =
         (e && e.message ? e.message : String(e)) +
