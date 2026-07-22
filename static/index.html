@@ -74,7 +74,7 @@
     margin-bottom: 18px;
   }
   .card h2 { font-size: 1.05rem; margin: 0 0 3px; }
-  .step-sub { color: var(--muted); font-size: 0.95rem; line-height: 1.45; margin: 0 0 16px; }
+  .step-sub { color: var(--muted); font-size: 0.95rem; font-style: italic; line-height: 1.45; margin: 0 0 16px; }
   .card.step { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: start; }
   .step-body { min-width: 0; }
   .step-num {
@@ -236,7 +236,7 @@
       <div class="step-num">1</div>
       <div class="step-body">
         <h2>Open your Kobo database</h2>
-        <p class="step-sub">Sideloaded highlights live only on the device, in a file called <code>KoboReader.sqlite</code>.</p>
+        <p class="step-sub">Your Kobo keeps sideloaded highlights in a local database — let's open it.</p>
         <p class="hint">
           Find it in the hidden <code>.kobo</code> folder on your Kobo. It's read locally, never uploaded.
         </p>
@@ -250,7 +250,7 @@
       <div class="step-num">2</div>
       <div class="step-body">
         <h2>Review highlights</h2>
-        <p class="step-sub">See exactly what will be synced, and leave out store or library books.</p>
+        <p class="step-sub">Preview exactly what will sync, and skip store or library books.</p>
         <div class="stats">
           <div class="stat">
             <div class="stat-num" id="n-highlights">0</div>
@@ -281,7 +281,7 @@
       <div class="step-num">3</div>
       <div class="step-body">
         <h2>Connect to Readwise</h2>
-        <p class="step-sub">Link your Readwise account so we can send your highlights.</p>
+        <p class="step-sub">Sign in with your Readwise token to enable syncing.</p>
 
         <!-- Not connected -->
         <div id="connect-panel">
@@ -317,7 +317,7 @@
       <div class="step-num">4</div>
       <div class="step-body">
         <h2>Sync to Readwise</h2>
-        <p class="step-sub">Send the highlights you reviewed to your Readwise library.</p>
+        <p class="step-sub">Send your chosen highlights straight to Readwise.</p>
         <p class="hint" id="sync-count" style="margin:4px 0 14px">No highlights selected to sync.</p>
         <button id="sync-btn" disabled>Sync to Readwise</button>
         <div class="progress hidden" id="sync-progress"><div class="progress-bar"></div></div>
