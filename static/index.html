@@ -82,7 +82,10 @@
     width: 28px; height: 28px; border-radius: 50%;
     background: var(--brand); color: var(--brand-ink);
     font-size: 0.85rem; font-weight: 700;
+    transition: background .2s ease;
   }
+  .step-num.done { background: var(--ok); font-size: 0; }
+  .step-num.done::after { content: "✓"; font-size: 0.95rem; font-weight: 700; }
   .card p.hint { color: var(--muted); font-size: 0.92rem; margin: 4px 0 16px; }
   .card[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
   button {
@@ -376,6 +379,7 @@
   const syncCount = el("sync-count");
   const syncProgress = el("sync-progress");
   const syncStatus = el("sync-status");
+  const cardDb = el("card-db");
   const cardReview = el("card-review");
   const cardConnect = el("card-connect");
   const cardSync = el("card-sync");
@@ -384,6 +388,7 @@
   let allRows = [];             // every highlight row read from the DB
   let connectedToken = null;    // set once the token is verified with Readwise
   let pendingSavedToken = null; // remembered token, auto-connected once step 3 unlocks
+  let hasSynced = false;        // set once a sync completes successfully
 
   // --- Version in footer ----------------------------------------------------
   fetch("/healthz").then((r) => r.json()).then((d) => {
@@ -456,6 +461,7 @@
 
   // --- Render the review panel from current selection -----------------------
   function renderReview() {
+    hasSynced = false; // the selection is being (re)built; a prior sync no longer applies
     const rows = selectedRows();
     // Group by VolumeID (the actual book), not title — two different books can
     // share a title, and merging them would miscount books.
@@ -519,6 +525,7 @@
   // Reset the review panel to its empty state (before a new load, and on failure).
   function clearReview() {
     allRows = [];
+    hasSynced = false;
     nHighlights.textContent = "0";
     nBooks.textContent = "0";
     reviewHint.classList.add("hidden");
@@ -582,6 +589,7 @@
       dbStatus.className = "status ok";
       dbStatus.textContent = "Loaded " + allRows.length + " highlights from " + file.name + ".";
       renderReview();
+      scrollToStep(cardReview);
     } catch (e) {
       clearReview();
       dbStatus.className = "status err";
@@ -592,6 +600,18 @@
   });
 
   // --- Step gating: each block stays disabled until the previous step is done
+  function setStepDone(card, done) {
+    card.querySelector(".step-num").classList.toggle("done", done);
+  }
+
+  // Scroll a step into view if it isn't comfortably visible yet.
+  function scrollToStep(card) {
+    const top = card.getBoundingClientRect().top;
+    if (top < 0 || top > window.innerHeight * 0.6) {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   function updateGates() {
     const sel = selectedRows();
     const dbLoaded = allRows.length > 0;
@@ -601,6 +621,12 @@
     cardConnect.setAttribute("aria-disabled", hasHighlights ? "false" : "true");
     cardSync.setAttribute("aria-disabled", connected && hasHighlights ? "false" : "true");
     syncBtn.disabled = !(connected && hasHighlights);
+
+    // Mark completed steps with a checkmark.
+    setStepDone(cardDb, dbLoaded);
+    setStepDone(cardReview, hasHighlights);
+    setStepDone(cardConnect, connected);
+    setStepDone(cardSync, hasSynced);
 
     // Show how many highlights (from how many books) will be synced.
     if (hasHighlights) {
@@ -635,6 +661,7 @@
     connectPanel.classList.remove("hidden");
     syncStatus.textContent = "";
     syncStatus.className = "status";
+    hasSynced = false;
     updateGates();
   }
 
@@ -657,6 +684,7 @@
           if (rememberToken.checked) localStorage.setItem(TOKEN_KEY, token);
         } catch { /* storage may be unavailable */ }
         setConnected(token);
+        if (!fromStorage) scrollToStep(cardSync);
       } else if (resp.ok) {
         if (fromStorage) { try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } }
         connectStatus.className = "status err";
@@ -720,6 +748,7 @@
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
+        hasSynced = true;
         syncStatus.className = "status ok";
         syncStatus.textContent =
           "✓ Synced " + (data.synced ?? highlights.length) + " highlights to Readwise.";
