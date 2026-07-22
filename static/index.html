@@ -270,11 +270,11 @@
       </div>
     </div>
 
-    <!-- Step 3: connect + sync -->
-    <div class="card step" id="card-sync">
+    <!-- Step 3: connect -->
+    <div class="card step" id="card-connect">
       <div class="step-num">3</div>
       <div class="step-body">
-        <h2>Connect Readwise &amp; sync</h2>
+        <h2>Connect to Readwise</h2>
 
         <!-- Not connected -->
         <div id="connect-panel">
@@ -301,12 +301,18 @@
             <span>Connected to Readwise</span>
             <button id="disconnect-btn" class="linkbtn" type="button">Disconnect</button>
           </div>
-          <div style="margin-top:16px">
-            <button id="sync-btn" disabled>Sync to Readwise</button>
-            <p class="hint" id="sync-hint" style="margin:10px 0 0">Load your Kobo database above to enable syncing.</p>
-          </div>
-          <div id="sync-status" class="status"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- Step 4: sync -->
+    <div class="card step" id="card-sync">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h2>Sync to Readwise</h2>
+        <button id="sync-btn" disabled>Sync to Readwise</button>
+        <p class="hint" id="sync-hint" style="margin:10px 0 0">Load your database and connect to Readwise first.</p>
+        <div id="sync-status" class="status"></div>
       </div>
     </div>
   </div>
@@ -574,8 +580,19 @@
   // --- Sync-button enablement ----------------------------------------------
   function updateSyncEnabled() {
     const hasHighlights = selectedRows().length > 0;
-    syncBtn.disabled = !connectedToken || !hasHighlights;
-    if (syncHint) syncHint.classList.toggle("hidden", hasHighlights);
+    const ready = Boolean(connectedToken) && hasHighlights;
+    syncBtn.disabled = !ready;
+    if (syncHint) {
+      syncHint.classList.toggle("hidden", ready);
+      if (!ready) {
+        syncHint.textContent =
+          !hasHighlights && !connectedToken
+            ? "Load your Kobo database (step 1) and connect to Readwise (step 3) first."
+            : !hasHighlights
+              ? "Load your Kobo database (step 1) first."
+              : "Connect to Readwise (step 3) first.";
+      }
+    }
   }
 
   // --- Connection state -----------------------------------------------------
