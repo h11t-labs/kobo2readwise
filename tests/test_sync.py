@@ -10,6 +10,7 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
+import app as app_module
 from app import READWISE_AUTH_URL, READWISE_URL, app
 
 client = TestClient(app)
@@ -125,3 +126,48 @@ def test_token_never_leaks_to_response_or_logs(caplog):
     assert resp.status_code == 200
     assert token not in resp.text
     assert token not in caplog.text
+
+
+def test_malformed_token_is_rejected_without_leaking(caplog):
+    # A token with a control char must be rejected (400) BEFORE it becomes an
+    # HTTP header — otherwise httpx raises with the token in the message and it
+    # gets logged. This is the regression guard for that leak.
+    token = "abc\nInjected-should-not-leak"
+    with caplog.at_level(logging.DEBUG):
+        sync_resp = client.post("/sync", json={"token": token, "highlights": [{"text": "x"}]})
+        verify_resp = client.post("/verify", json={"token": token})
+    assert sync_resp.status_code == 400
+    assert verify_resp.status_code == 400
+    assert "should-not-leak" not in caplog.text
+    assert "should-not-leak" not in sync_resp.text
+
+
+def test_sync_caps_highlight_count(monkeypatch):
+    monkeypatch.setattr(app_module, "MAX_HIGHLIGHTS", 2)
+    resp = client.post(
+        "/sync",
+        json={"token": "validtoken", "highlights": [{"text": "a"}, {"text": "b"}, {"text": "c"}]},
+    )
+    assert resp.status_code == 413
+
+
+def test_oversized_body_is_rejected(monkeypatch):
+    monkeypatch.setattr(app_module, "MAX_BODY_BYTES", 10)
+    resp = client.post(
+        "/sync", json={"token": "validtoken", "highlights": [{"text": "hello world"}]}
+    )
+    assert resp.status_code == 413
+
+
+@respx.mock
+def test_sync_network_error_maps_to_502():
+    respx.post(READWISE_URL).mock(side_effect=httpx.ConnectError("boom"))
+    resp = client.post("/sync", json={"token": "validtoken", "highlights": [{"text": "a"}]})
+    assert resp.status_code == 502
+
+
+def test_api_docs_are_disabled():
+    # /docs and /redoc would load third-party CDN scripts on our origin.
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404

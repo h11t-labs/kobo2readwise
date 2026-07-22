@@ -14,6 +14,7 @@ duration of a single request.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import httpx
@@ -32,7 +33,20 @@ BATCH_SIZE = 100
 # limits that protect against abuse and runaway egress costs.
 SYNC_RATE_LIMIT = os.environ.get("SYNC_RATE_LIMIT", "10/hour")
 VERIFY_RATE_LIMIT = os.environ.get("VERIFY_RATE_LIMIT", "30/hour")
+# Bound egress and memory: cap highlights per request and total request size.
+MAX_HIGHLIGHTS = int(os.environ.get("MAX_HIGHLIGHTS", "5000"))
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(16 * 1024 * 1024)))
 STATIC_DIR = Path(__file__).parent / "static"
+
+# A Readwise token is a short, printable-ASCII string. Reject anything with
+# whitespace or control characters *before* it becomes an HTTP header value:
+# an illegal header makes httpx raise with the token in the message, which would
+# then be logged — breaking the token-never-logged guarantee.
+_TOKEN_RE = re.compile(r"[\x21-\x7e]{1,256}")
+
+
+def _valid_token(token: str) -> bool:
+    return _TOKEN_RE.fullmatch(token) is not None
 
 
 def _version() -> str:
@@ -71,7 +85,16 @@ def _client_ip(request: Request) -> str:
 
 limiter = Limiter(key_func=_client_ip)
 
-app = FastAPI(title="kobo2readwise", version=__version__)
+# Docs UIs are disabled on purpose: /docs and /redoc load Swagger/ReDoc JS from a
+# CDN, which would run third-party script on our origin and could read a
+# remembered token from localStorage. This is a plain proxy — it needs no docs.
+app = FastAPI(
+    title="kobo2readwise",
+    version=__version__,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 app.state.limiter = limiter
 
 
@@ -96,6 +119,21 @@ async def _revalidate_html(request: Request, call_next):
     if path == "/" or path.endswith(".html"):
         response.headers["Cache-Control"] = "no-cache"
     return response
+
+
+@app.middleware("http")
+async def _limit_body_size(request: Request, call_next):
+    """Reject oversized bodies before FastAPI parses them.
+
+    The rate limiter runs inside the endpoint (after parsing), so it can't guard
+    the parser. A Content-Length check here caps memory/egress for the common
+    (non-chunked) case.
+    """
+    if request.method == "POST":
+        cl = request.headers.get("content-length")
+        if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Request body too large."})
+    return await call_next(request)
 
 
 class SyncRequest(BaseModel):
@@ -123,8 +161,18 @@ async def verify(request: Request, payload: VerifyRequest) -> dict:
     token = payload.token.strip()
     if not token:
         raise HTTPException(status_code=400, detail="Missing Readwise token.")
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(READWISE_AUTH_URL, headers={"Authorization": f"Token {token}"})
+    if not _valid_token(token):
+        raise HTTPException(
+            status_code=400, detail="That doesn't look like a valid Readwise token."
+        )
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(READWISE_AUTH_URL, headers={"Authorization": f"Token {token}"})
+    except httpx.HTTPError:
+        # Never surface the exception text — it can echo the token/header value.
+        raise HTTPException(
+            status_code=502, detail="Couldn't reach Readwise. Please try again."
+        ) from None
     if resp.status_code == 204:
         return {"valid": True}
     if resp.status_code == 401:
@@ -140,23 +188,38 @@ async def sync(request: Request, payload: SyncRequest) -> dict:
     token = payload.token.strip()
     if not token:
         raise HTTPException(status_code=400, detail="Missing Readwise token.")
+    if not _valid_token(token):
+        raise HTTPException(
+            status_code=400, detail="That doesn't look like a valid Readwise token."
+        )
     if not payload.highlights:
         raise HTTPException(status_code=400, detail="No highlights to sync.")
+    if len(payload.highlights) > MAX_HIGHLIGHTS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Too many highlights in one request (max {MAX_HIGHLIGHTS}).",
+        )
 
     headers = {"Authorization": f"Token {token}"}
     synced = 0
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for start in range(0, len(payload.highlights), BATCH_SIZE):
-            batch = payload.highlights[start : start + BATCH_SIZE]
-            resp = await client.post(READWISE_URL, headers=headers, json={"highlights": batch})
-            if resp.status_code == 401:
-                raise HTTPException(status_code=401, detail="Readwise rejected the token.")
-            if resp.status_code >= 400:
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Readwise returned an error (HTTP {resp.status_code}).",
-                )
-            synced += len(batch)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for start in range(0, len(payload.highlights), BATCH_SIZE):
+                batch = payload.highlights[start : start + BATCH_SIZE]
+                resp = await client.post(READWISE_URL, headers=headers, json={"highlights": batch})
+                if resp.status_code == 401:
+                    raise HTTPException(status_code=401, detail="Readwise rejected the token.")
+                if not 200 <= resp.status_code < 300:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Readwise returned an error (HTTP {resp.status_code}).",
+                    )
+                synced += len(batch)
+    except httpx.HTTPError:
+        # Never surface the exception text — it can echo the token/header value.
+        raise HTTPException(
+            status_code=502, detail="Couldn't reach Readwise. Please try again."
+        ) from None
     return {"synced": synced}
 
 
