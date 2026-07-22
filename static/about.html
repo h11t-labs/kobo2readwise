@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>About &amp; Help · kobo2readwise</title>
+<meta name="description" content="What kobo2readwise is, how to use it, and answers to common questions." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      media="print" onload="this.media='all'" />
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1a1d21; --muted: #5b6470; --line: #e4e7eb;
+    --brand: #b3541e; --radius: 14px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1d2025; --ink: #eceef1; --muted: #9aa4b0; --line: #2c313a;
+      --brand: #d9772f; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 40px 20px 64px; }
+  .back { display: inline-block; margin-bottom: 18px; font-size: 0.9rem; color: var(--brand); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  header h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 8px; letter-spacing: -0.02em; }
+  header p.lede { color: var(--muted); margin: 0 0 24px; font-size: 1.05rem; }
+  h2 { font-size: 1.15rem; margin: 26px 0 10px; }
+  p { margin: 8px 0; }
+  a { color: var(--brand); }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; margin: 0; }
+  .steps li { position: relative; padding-left: 40px; margin: 12px 0; }
+  .steps li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: -1px;
+    width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700;
+  }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 0.85em; }
+
+  /* FAQ accordion */
+  .faq details {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    margin: 8px 0; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .faq summary {
+    cursor: pointer; padding: 14px 16px; font-weight: 600; list-style: none;
+    display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 1.2rem; }
+  .faq details[open] > summary::after { content: "−"; }
+  .faq details[open] > summary { border-bottom: 1px solid var(--line); }
+  .faq .answer { padding: 4px 16px 14px; color: var(--ink); }
+  .faq .answer p:first-child { margin-top: 10px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 32px; line-height: 1.9; }
+  footer a { text-decoration: none; color: var(--brand); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Back to the app</a>
+
+  <header>
+    <h1>About &amp; Help</h1>
+    <p class="lede">
+      kobo2readwise gets highlights out of your <strong>sideloaded</strong> Kobo books and into Readwise.
+      When you sideload a book, its highlights are saved only on the device — Readwise can't fetch them,
+      so this reads them in your browser and sends them over.
+    </p>
+  </header>
+
+  <h2>How to use it</h2>
+  <ol class="steps">
+    <li>Connect your Kobo by USB and open the hidden <code>.kobo</code> folder on the drive.</li>
+    <li>Click <strong>Choose KoboReader.sqlite…</strong> and pick that file.</li>
+    <li>Review the highlights it found (keep <strong>Only sideloaded books</strong> on).</li>
+    <li>Paste your Readwise token, click <strong>Connect to Readwise</strong>, then <strong>Sync</strong>.</li>
+  </ol>
+
+  <h2>FAQ</h2>
+  <div class="faq">
+    <details>
+      <summary>Doesn't Readwise already sync my Kobo?</summary>
+      <div class="answer">
+        <p>Yes — for books from the Kobo store, Kobo&nbsp;Plus, and library loans. Those go through
+          <a href="https://readwise.io/kobo_sync" target="_blank" rel="noopener">Readwise's own Kobo integration</a>.
+          But highlights from books <em>you</em> sideloaded never reach the cloud, so Readwise can't see them —
+          that's the gap this fills. Keep <strong>Only sideloaded books</strong> checked so you don't duplicate
+          what Readwise already has.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>What happens to my Readwise token?</summary>
+      <div class="answer">
+        <p>It's sent to Readwise to check and sync, then forgotten — <strong>never stored or logged on the
+          server</strong> (there's no database and no request logging).</p>
+        <p><strong>Remember on this device</strong> is optional: it saves the token only in <em>this browser's</em>
+          local storage, never on the server. Click <strong>Disconnect</strong> to erase it, and leave it off on a
+          shared computer.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Does my Kobo data get uploaded?</summary>
+      <div class="answer">
+        <p>No. The database is read entirely in your browser (with
+          <a href="https://sql.js.org" target="_blank" rel="noopener">sql.js</a>, which is also served from this
+          site), and the file never leaves your computer. Only the highlights you sync are sent — through a thin
+          proxy — to Readwise.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Which browsers work?</summary>
+      <div class="answer">
+        <p><strong>Chrome or Edge on desktop.</strong> They support the
+          <a href="https://developer.mozilla.org/en-US/docs/Web/API/File_System_API" target="_blank" rel="noopener">File System Access API</a>
+          this relies on. Firefox, Safari, and phone/tablet browsers don't — there's no workaround on those.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>I can't find KoboReader.sqlite</summary>
+      <div class="answer">
+        <p>It's in a hidden <code>.kobo</code> folder at the root of the Kobo drive. Turn on "show hidden files"
+          in your file manager, or copy the file to your Desktop first and pick it from there.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>It says "No highlights found", or a book is missing</summary>
+      <div class="answer">
+        <p>By default only sideloaded books are shown. Uncheck <strong>Only sideloaded books</strong> to include
+          everything. Empty highlights are skipped.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>It says "Readwise rejected the token"</summary>
+      <div class="answer">
+        <p>Re-copy the full token from
+          <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>
+          and connect again.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Is it open source?</summary>
+      <div class="answer">
+        <p>Yes. Read the code — including the proxy —
+          <a href="https://github.com/h11t-labs/kobo2readwise" target="_blank" rel="noopener">on GitHub</a>
+          (<a href="https://github.com/h11t-labs/kobo2readwise/blob/main/app.py" target="_blank" rel="noopener">app.py</a>).</p>
+      </div>
+    </details>
+  </div>
+
+  <footer>
+    <a href="/">Back to the app</a>
+    · <a href="https://github.com/h11t-labs/kobo2readwise" target="_blank" rel="noopener">Source on GitHub</a>
+    · by <a href="https://github.com/h11t-labs" target="_blank" rel="noopener">h11t-labs</a>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kobo2readwise</title>
+<meta name="description" content="Sync sideloaded Kobo highlights to Readwise, straight from your browser." />
+<!-- Fonts load non-blocking: the page renders immediately with system fonts and
+     upgrades to Inter once (and if) the CDN responds. A blocked/slow font CDN can
+     never blank the page. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      media="print" onload="this.media='all'" />
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #1a1d21;
+    --muted: #5b6470;
+    --line: #e4e7eb;
+    --brand: #b3541e;      /* Kobo-ish warm accent */
+    --brand-ink: #ffffff;
+    --ok: #1a7f4b;
+    --err: #b3261e;
+    --warn-bg: #fff4e6;
+    --warn-line: #f0c48a;
+    --warn-ink: #8a4b12;
+    --radius: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --card: #1d2025;
+      --ink: #eceef1;
+      --muted: #9aa4b0;
+      --line: #2c313a;
+      --brand: #d9772f;
+      --warn-bg: #2e2113;
+      --warn-line: #5a4526;
+      --warn-ink: #f0c48a;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 40px 20px 64px; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header p { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  header .toplink {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
+    font-size: 0.88rem; font-weight: 600; text-decoration: none; color: var(--muted);
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+    transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  header .toplink:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--shadow); }
+  header .toplink svg { width: 15px; height: 15px; }
+  .lede { text-align: center; color: var(--muted); font-size: 0.95rem; margin: -6px auto 24px; max-width: 48ch; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 18px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 3px; }
+  .step-sub { color: var(--muted); font-size: 0.95rem; font-style: italic; line-height: 1.45; margin: 0 0 16px; }
+  .card.step { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: start; }
+  .step-body { min-width: 0; }
+  .step-num {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--brand); color: var(--brand-ink);
+    font-size: 0.85rem; font-weight: 700;
+    transition: background .2s ease;
+  }
+  .step-num.done { background: var(--ok); font-size: 0; }
+  .step-num.done::after { content: "✓"; font-size: 0.95rem; font-weight: 700; }
+  .card p.hint { color: var(--muted); font-size: 0.92rem; margin: 4px 0 16px; }
+  .card[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border: none; border-radius: 10px; padding: 11px 18px;
+    background: var(--brand); color: var(--brand-ink);
+    transition: filter .15s ease, transform .02s ease;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:active { transform: translateY(1px); }
+  button:disabled { cursor: not-allowed; background: var(--line); color: var(--muted); filter: none; box-shadow: none; }
+  button.secondary { background: transparent; color: var(--brand); border: 1px solid var(--brand); }
+  input[type="password"], input[type="text"] {
+    font: inherit; width: 100%; padding: 11px 12px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink);
+  }
+  input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+  label.row { display: flex; align-items: center; gap: 9px; margin: 14px 0 4px; font-size: 0.94rem; cursor: pointer; }
+  a { color: var(--brand); }
+  .stats { display: flex; gap: 12px; margin: 6px 0 16px; }
+  .stat {
+    flex: 1; text-align: center;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 16px 10px;
+  }
+  .stat-num { font-size: 2rem; font-weight: 700; line-height: 1; color: var(--brand); font-variant-numeric: tabular-nums; }
+  .stat-lbl { display: inline-flex; align-items: center; justify-content: center; gap: 5px; color: var(--muted); font-size: 0.8rem; margin-top: 7px; }
+  .stat-lbl svg { width: 14px; height: 14px; }
+  .booklist { margin: 0; max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .book { border-bottom: 1px solid var(--line); }
+  .book:last-child { border-bottom: none; }
+  .book > summary {
+    cursor: pointer; padding: 9px 12px; font-size: 0.9rem; list-style: none;
+    display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  }
+  .book > summary::-webkit-details-marker { display: none; }
+  .book > summary::after { content: "+"; color: var(--muted); flex: none; }
+  .book[open] > summary::after { content: "−"; }
+  .book-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .book .count { color: var(--muted); flex: none; font-size: 0.82rem; }
+  .hl-list { list-style: none; margin: 0; padding: 2px 12px 12px; }
+  .hl-list li { margin: 12px 0; padding-left: 14px; border-left: 3px solid var(--brand); }
+  .hl-text { font-style: italic; font-size: 0.9rem; line-height: 1.55; white-space: pre-wrap; color: var(--ink); }
+  .hl-text::before { content: "\201C"; }
+  .hl-text::after { content: "\201D"; }
+  .hl-note { font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
+  .hl-empty { padding: 12px; font-size: 0.9rem; color: var(--muted); }
+  .status { margin-top: 14px; font-size: 0.95rem; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+
+  /* Unsupported-browser notice */
+  .notice {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    color: var(--warn-ink);
+    border-radius: var(--radius);
+    padding: 30px 26px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .notice .icon { font-size: 2.4rem; line-height: 1; }
+  .notice h2 { margin: 12px 0 8px; font-size: 1.25rem; color: var(--ink); }
+  .notice p { margin: 8px auto; max-width: 44ch; font-size: 0.97rem; }
+  .notice .detail { color: var(--muted); font-size: 0.9rem; }
+  .notice a { color: var(--brand); font-weight: 600; }
+  .notice .cta {
+    margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--warn-line);
+  }
+  .notice .cta p { font-weight: 600; color: var(--ink); }
+  .browsers { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 14px 0 2px; }
+  .browsers .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 999px; padding: 6px 13px; font-size: 0.86rem; font-weight: 600;
+  }
+  .copy-done { margin-left: 10px; color: var(--ok); font-weight: 600; font-size: 0.9rem; }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; margin-right: 7px;
+    border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress { position: relative; height: 6px; margin-top: 14px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .progress-bar { position: absolute; top: 0; height: 100%; width: 35%; border-radius: 999px; background: var(--brand); animation: indeterminate 1.1s ease-in-out infinite; }
+  @keyframes indeterminate { 0% { left: -35%; } 100% { left: 100%; } }
+  footer { text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 30px; line-height: 1.9; }
+  footer a { text-decoration: none; }
+  .controls { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px; }
+  .controls label.row { margin: 0; }
+  .connected-badge { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .connected-badge .dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--ok);
+    box-shadow: 0 0 0 3px rgba(26,127,75,.18); flex: none;
+  }
+  .linkbtn {
+    background: none; border: none; padding: 0; margin-left: auto; cursor: pointer;
+    color: var(--muted); font-weight: 500; font-size: 0.88rem; text-decoration: underline;
+  }
+  .linkbtn:hover { color: var(--err); filter: none; }
+  .hidden { display: none !important; }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>kobo2readwise</h1>
+    <p>Sync highlights from sideloaded Kobo books to Readwise.</p>
+    <a class="toplink" href="/about.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      About &amp; Help
+    </a>
+  </header>
+
+  <!-- Unsupported-browser notice (shown by JS when the File System Access API is missing) -->
+  <div id="unsupported" class="notice hidden" role="alert">
+    <div class="icon" aria-hidden="true">⚠️</div>
+    <h2>This browser can't run kobo2readwise</h2>
+    <p>
+      kobo2readwise reads your Kobo database <strong>directly on your computer</strong> using the
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/File_System_API" target="_blank" rel="noopener">File System Access API</a>.
+      That API only exists in a couple of desktop browsers.
+    </p>
+    <div class="browsers">
+      <span class="chip">✅ Chrome — desktop</span>
+      <span class="chip">✅ Edge — desktop</span>
+    </div>
+    <p class="detail">
+      Firefox, Safari, and every phone or tablet browser can't run it — there's no workaround on those.
+    </p>
+    <div class="cta">
+      <p>Open this page in Chrome or Edge on a computer to continue.</p>
+      <button id="copy-url" class="secondary" type="button">Copy this page's link</button>
+      <span id="copy-done" class="copy-done hidden">Copied ✓</span>
+    </div>
+  </div>
+
+  <!-- App (shown by JS when supported) -->
+  <div id="app" class="hidden">
+    <p class="lede">
+      Your Kobo file is read in your browser and never uploaded. Your token passes through
+      our proxy only to verify and sync — never stored on our server.
+    </p>
+
+    <!-- Step 1: pick the database -->
+    <div class="card step" id="card-db">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h2>Open your Kobo database</h2>
+        <p class="step-sub">Your Kobo keeps sideloaded highlights in a local database — let's open it.</p>
+        <p class="hint">
+          Find it in the hidden <code>.kobo</code> folder on your Kobo. It's read locally, never uploaded.
+        </p>
+        <button id="pick-btn">Choose KoboReader.sqlite…</button>
+        <div id="db-status" class="status"></div>
+      </div>
+    </div>
+
+    <!-- Step 2: review -->
+    <div class="card step" id="card-review">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h2>Review highlights</h2>
+        <p class="step-sub">Preview exactly what will sync, and skip store or library books.</p>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-num" id="n-highlights">0</div>
+            <div class="stat-lbl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+              highlights
+            </div>
+          </div>
+          <div class="stat">
+            <div class="stat-num" id="n-books">0</div>
+            <div class="stat-lbl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              books
+            </div>
+          </div>
+        </div>
+        <label class="row">
+          <input type="checkbox" id="sideloaded-only" checked />
+          Only sideloaded books (recommended — avoids duplicating store/library syncs)
+        </label>
+        <p class="hint hidden" id="review-hint" style="margin:8px 0 10px">Expand a book to see the highlights that will be synced.</p>
+        <div class="booklist" id="booklist"><div class="hl-empty">Load your Kobo database above to see highlights.</div></div>
+      </div>
+    </div>
+
+    <!-- Step 3: connect -->
+    <div class="card step" id="card-connect">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h2>Connect to Readwise</h2>
+        <p class="step-sub">Sign in with your Readwise token to enable syncing.</p>
+
+        <!-- Not connected -->
+        <div id="connect-panel">
+          <p class="hint">
+            Paste your token from
+            <a href="https://readwise.io/access_token" target="_blank" rel="noopener">readwise.io/access_token</a>.
+            We send it to Readwise to check it and to sync — <b>never stored on our server</b>.
+          </p>
+          <input type="password" id="token" placeholder="Readwise access token" autocomplete="off" spellcheck="false" />
+          <div class="controls">
+            <label class="row"><input type="checkbox" id="show-token" /> Show token</label>
+            <label class="row"><input type="checkbox" id="remember-token" checked /> Remember on this device</label>
+          </div>
+          <div style="margin-top:14px">
+            <button id="connect-btn" disabled>Connect to Readwise</button>
+          </div>
+          <div id="connect-status" class="status"></div>
+        </div>
+
+        <!-- Connected -->
+        <div id="connected-panel" class="hidden">
+          <div class="connected-badge">
+            <span class="dot" aria-hidden="true"></span>
+            <span>Connected to Readwise</span>
+            <button id="disconnect-btn" class="linkbtn" type="button">Disconnect</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: sync -->
+    <div class="card step" id="card-sync">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h2>Sync to Readwise</h2>
+        <p class="step-sub">Send your chosen highlights straight to Readwise.</p>
+        <p class="hint" id="sync-count" style="margin:4px 0 14px">No highlights selected to sync.</p>
+        <button id="sync-btn" disabled>Sync to Readwise</button>
+        <div class="progress hidden" id="sync-progress"><div class="progress-bar"></div></div>
+        <div id="sync-status" class="status"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/about.html">About &amp; Help</a>
+    · <a href="https://github.com/h11t-labs/kobo2readwise" target="_blank" rel="noopener">Source on GitHub</a>
+    · by <a href="https://github.com/h11t-labs" target="_blank" rel="noopener">h11t-labs</a><br />
+    your token is never stored or logged on our server · <span id="version">v–</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // --- Browser support gate (runs immediately; depends on no external script) ---
+  const supported = "showOpenFilePicker" in window;
+  if (!supported) {
+    document.getElementById("unsupported").classList.remove("hidden");
+    const copyBtn = document.getElementById("copy-url");
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        document.getElementById("copy-done").classList.remove("hidden");
+      } catch {
+        copyBtn.textContent = location.href;
+      }
+    });
+    return;
+  }
+  document.getElementById("app").classList.remove("hidden");
+
+  // --- Element handles ------------------------------------------------------
+  const el = (id) => document.getElementById(id);
+  const pickBtn = el("pick-btn");
+  const dbStatus = el("db-status");
+  const reviewHint = el("review-hint");
+  const nHighlights = el("n-highlights");
+  const nBooks = el("n-books");
+  const bookList = el("booklist");
+  const sideloadedOnly = el("sideloaded-only");
+  const tokenInput = el("token");
+  const showToken = el("show-token");
+  const rememberToken = el("remember-token");
+  const connectBtn = el("connect-btn");
+  const connectStatus = el("connect-status");
+  const connectPanel = el("connect-panel");
+  const connectedPanel = el("connected-panel");
+  const disconnectBtn = el("disconnect-btn");
+  const syncBtn = el("sync-btn");
+  const syncCount = el("sync-count");
+  const syncProgress = el("sync-progress");
+  const syncStatus = el("sync-status");
+  const cardDb = el("card-db");
+  const cardReview = el("card-review");
+  const cardConnect = el("card-connect");
+  const cardSync = el("card-sync");
+
+  const TOKEN_KEY = "k2r_token";
+  let allRows = [];             // every highlight row read from the DB
+  let connectedToken = null;    // set once the token is verified with Readwise
+  let pendingSavedToken = null; // remembered token, auto-connected once step 3 unlocks
+  let hasSynced = false;        // set once a sync completes successfully
+
+  // --- Version in footer ----------------------------------------------------
+  fetch("/healthz").then((r) => r.json()).then((d) => {
+    if (d && d.version) el("version").textContent = "v" + d.version;
+  }).catch(() => {});
+
+  // --- Lazy-load sql.js only when needed (never blocks initial render) -------
+  // Self-hosted (same-origin) so no third-party script runs on this page and
+  // the ~0.7 MB wasm is only fetched once a database is picked. Pinned copy in
+  // static/sqljs/ (see static/sqljs/VERSION).
+  const SQLJS_BASE = "/sqljs/";
+  let sqlJsPromise = null;
+  function loadSqlJs() {
+    if (sqlJsPromise) return sqlJsPromise;
+    sqlJsPromise = new Promise((resolve, reject) => {
+      if (window.initSqlJs) return resolve();
+      const s = document.createElement("script");
+      s.src = SQLJS_BASE + "sql-wasm.js";
+      s.onload = resolve;
+      s.onerror = () => reject(new Error("Couldn't load the sql.js library — please reload the page."));
+      document.head.appendChild(s);
+    }).then(() => initSqlJs({ locateFile: (f) => SQLJS_BASE + f }));
+    return sqlJsPromise;
+  }
+
+  // --- Helpers --------------------------------------------------------------
+  function isSideloaded(volumeId) {
+    return typeof volumeId === "string" && volumeId.startsWith("file://");
+  }
+
+  function titleFromVolume(volumeId) {
+    try {
+      const name = decodeURIComponent(String(volumeId).split("/").pop() || "");
+      return name.replace(/\.(epub|pdf|kepub|mobi|azw3?|cbz)$/i, "") || "Unknown title";
+    } catch {
+      return "Unknown title";
+    }
+  }
+
+  function toIso(dateCreated) {
+    if (!dateCreated) return undefined;
+    // Kobo stores e.g. "2021-05-03T12:34:56.000" (no timezone). Treat as UTC.
+    let s = String(dateCreated).trim();
+    if (!/[zZ]|[+-]\d\d:?\d\d$/.test(s)) s = s.replace(" ", "T") + "Z";
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+
+  function selectedRows() {
+    return sideloadedOnly.checked ? allRows.filter((r) => isSideloaded(r.volumeId)) : allRows;
+  }
+
+  function bookTitle(row) {
+    return (row.title && row.title.trim()) || titleFromVolume(row.volumeId);
+  }
+
+  function toReadwise(row) {
+    const h = {
+      text: row.text,
+      title: bookTitle(row),
+      source_type: "kobo",
+      category: "books",
+    };
+    if (row.author && row.author.trim()) h.author = row.author.trim();
+    if (row.note && row.note.trim()) h.note = row.note.trim();
+    const at = toIso(row.dateCreated);
+    if (at) h.highlighted_at = at;
+    return h;
+  }
+
+  // --- Render the review panel from current selection -----------------------
+  function renderReview() {
+    hasSynced = false; // the selection is being (re)built; a prior sync no longer applies
+    const rows = selectedRows();
+    // Group by VolumeID (the actual book), not title — two different books can
+    // share a title, and merging them would miscount books.
+    const byBook = new Map(); // volumeId -> { title, rows: [] }
+    for (const r of rows) {
+      const key = r.volumeId || bookTitle(r);
+      if (!byBook.has(key)) byBook.set(key, { title: bookTitle(r), rows: [] });
+      byBook.get(key).rows.push(r);
+    }
+    nHighlights.textContent = rows.length;
+    nBooks.textContent = byBook.size;
+    reviewHint.classList.toggle("hidden", rows.length === 0);
+
+    bookList.innerHTML = "";
+    if (byBook.size === 0) {
+      const empty = document.createElement("div");
+      empty.className = "hl-empty";
+      empty.textContent = "No matching highlights found.";
+      bookList.appendChild(empty);
+      updateGates();
+      return;
+    }
+
+    const sorted = [...byBook.values()].sort((a, b) => b.rows.length - a.rows.length);
+    for (const { title, rows: bookRows } of sorted) {
+      const details = document.createElement("details");
+      details.className = "book";
+
+      const summary = document.createElement("summary");
+      const t = document.createElement("span");
+      t.className = "book-title";
+      t.textContent = title;
+      const c = document.createElement("span");
+      c.className = "count";
+      c.textContent = bookRows.length + (bookRows.length === 1 ? " highlight" : " highlights");
+      summary.append(t, c);
+      details.appendChild(summary);
+
+      const ul = document.createElement("ul");
+      ul.className = "hl-list";
+      for (const r of bookRows) {
+        const li = document.createElement("li");
+        const txt = document.createElement("div");
+        txt.className = "hl-text";
+        txt.textContent = r.text; // textContent — never parsed as HTML
+        li.appendChild(txt);
+        if (r.note && String(r.note).trim()) {
+          const note = document.createElement("div");
+          note.className = "hl-note";
+          note.textContent = "Note: " + String(r.note).trim();
+          li.appendChild(note);
+        }
+        ul.appendChild(li);
+      }
+      details.appendChild(ul);
+      bookList.appendChild(details);
+    }
+    updateGates();
+  }
+
+  // Reset the review panel to its empty state (before a new load, and on failure).
+  function clearReview() {
+    allRows = [];
+    hasSynced = false;
+    nHighlights.textContent = "0";
+    nBooks.textContent = "0";
+    reviewHint.classList.add("hidden");
+    bookList.innerHTML = '<div class="hl-empty">Load your Kobo database above to see highlights.</div>';
+    updateGates();
+  }
+
+  // --- Step 1: read the database --------------------------------------------
+  pickBtn.addEventListener("click", async () => {
+    dbStatus.className = "status";
+    dbStatus.textContent = "";
+    let file;
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: "Kobo database", accept: { "application/octet-stream": [".sqlite"] } }],
+        excludeAcceptAllOption: false,
+      });
+      file = await handle.getFile();
+    } catch (e) {
+      if (e && e.name === "AbortError") return; // user cancelled
+      dbStatus.className = "status err";
+      dbStatus.textContent = "Couldn't open the file: " + (e && e.message ? e.message : e);
+      return;
+    }
+
+    dbStatus.innerHTML = '<span class="spinner"></span>Reading database…';
+    // Drop any previously loaded DB up front, so a failed or empty new load
+    // can't leave the old highlights visible and syncable.
+    clearReview();
+    try {
+      const SQL = await loadSqlJs();
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const rows = [];
+      const db = new SQL.Database(buf);
+      try {
+        const res = db.exec(
+          "SELECT b.Text AS text, b.Annotation AS note, b.DateCreated AS dateCreated, " +
+          "b.VolumeID AS volumeId, c.Title AS title, c.Attribution AS author " +
+          "FROM Bookmark b LEFT JOIN content c ON c.ContentID = b.VolumeID " +
+          "WHERE b.Text IS NOT NULL AND TRIM(b.Text) <> '' " +
+          "ORDER BY b.VolumeID, b.DateCreated"
+        );
+        if (res.length) {
+          const cols = res[0].columns;
+          for (const v of res[0].values) {
+            const row = {};
+            cols.forEach((c, i) => { row[c] = v[i]; });
+            rows.push(row);
+          }
+        }
+      } finally {
+        db.close();
+      }
+
+      if (rows.length === 0) {
+        dbStatus.className = "status err";
+        dbStatus.textContent = "No highlights found in this database.";
+        return; // allRows already cleared -> sync stays disabled
+      }
+      allRows = rows;
+      dbStatus.className = "status ok";
+      dbStatus.textContent = "Loaded " + allRows.length + " highlights from " + file.name + ".";
+      renderReview();
+      scrollToStep(cardReview);
+    } catch (e) {
+      clearReview();
+      dbStatus.className = "status err";
+      dbStatus.textContent =
+        (e && e.message ? e.message : String(e)) +
+        " — is this really a KoboReader.sqlite?";
+    }
+  });
+
+  // --- Step gating: each block stays disabled until the previous step is done
+  function setStepDone(card, done) {
+    card.querySelector(".step-num").classList.toggle("done", done);
+  }
+
+  // Scroll a step into view if it isn't comfortably visible yet.
+  function scrollToStep(card) {
+    const top = card.getBoundingClientRect().top;
+    if (top < 0 || top > window.innerHeight * 0.6) {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function updateGates() {
+    const sel = selectedRows();
+    const dbLoaded = allRows.length > 0;
+    const hasHighlights = sel.length > 0;
+    const connected = Boolean(connectedToken);
+    cardReview.setAttribute("aria-disabled", dbLoaded ? "false" : "true");
+    cardConnect.setAttribute("aria-disabled", hasHighlights ? "false" : "true");
+    cardSync.setAttribute("aria-disabled", connected && hasHighlights ? "false" : "true");
+    syncBtn.disabled = !(connected && hasHighlights);
+
+    // Mark completed steps with a checkmark.
+    setStepDone(cardDb, dbLoaded);
+    setStepDone(cardReview, hasHighlights);
+    setStepDone(cardConnect, connected);
+    setStepDone(cardSync, hasSynced);
+
+    // Show how many highlights (from how many books) will be synced.
+    if (hasHighlights) {
+      const books = new Set(sel.map((r) => r.volumeId || bookTitle(r))).size;
+      syncCount.textContent =
+        sel.length + (sel.length === 1 ? " highlight" : " highlights") +
+        " from " + books + (books === 1 ? " book" : " books") +
+        " will be synced to Readwise.";
+    } else {
+      syncCount.textContent = "No highlights selected to sync.";
+    }
+
+    // Auto-reconnect a remembered token, but only once step 3 is reachable.
+    if (hasHighlights && pendingSavedToken && !connectedToken) {
+      const t = pendingSavedToken;
+      pendingSavedToken = null;
+      connect(t, true);
+    }
+  }
+
+  // --- Connection state -----------------------------------------------------
+  function setConnected(token) {
+    connectedToken = token;
+    connectPanel.classList.add("hidden");
+    connectedPanel.classList.remove("hidden");
+    updateGates();
+  }
+
+  function setDisconnected() {
+    connectedToken = null;
+    connectedPanel.classList.add("hidden");
+    connectPanel.classList.remove("hidden");
+    syncStatus.textContent = "";
+    syncStatus.className = "status";
+    hasSynced = false;
+    updateGates();
+  }
+
+  async function connect(token, fromStorage) {
+    if (!token) return;
+    connectBtn.disabled = true;
+    connectStatus.className = "status";
+    connectStatus.innerHTML =
+      '<span class="spinner"></span>' + (fromStorage ? "Reconnecting…" : "Checking your token…");
+    try {
+      const resp = await fetch("/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.valid) {
+        connectStatus.textContent = "";
+        try {
+          if (rememberToken.checked) localStorage.setItem(TOKEN_KEY, token);
+        } catch { /* storage may be unavailable */ }
+        setConnected(token);
+        if (!fromStorage) scrollToStep(cardSync);
+      } else if (resp.ok) {
+        if (fromStorage) { try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } }
+        connectStatus.className = "status err";
+        connectStatus.textContent = "That token wasn't accepted by Readwise.";
+        connectBtn.disabled = tokenInput.value.trim() === "";
+      } else {
+        connectStatus.className = "status err";
+        connectStatus.textContent = data.detail || ("Couldn't verify token (HTTP " + resp.status + ").");
+        connectBtn.disabled = tokenInput.value.trim() === "";
+      }
+    } catch (e) {
+      connectStatus.className = "status err";
+      connectStatus.textContent = "Couldn't reach the server: " + (e && e.message ? e.message : e);
+      connectBtn.disabled = tokenInput.value.trim() === "";
+    }
+  }
+
+  // --- Wiring ---------------------------------------------------------------
+  sideloadedOnly.addEventListener("change", renderReview);
+  showToken.addEventListener("change", () => {
+    tokenInput.type = showToken.checked ? "text" : "password";
+  });
+  tokenInput.addEventListener("input", () => {
+    connectBtn.disabled = tokenInput.value.trim() === "";
+  });
+  tokenInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && tokenInput.value.trim()) connect(tokenInput.value.trim(), false);
+  });
+  rememberToken.addEventListener("change", () => {
+    try {
+      if (!rememberToken.checked) localStorage.removeItem(TOKEN_KEY);
+      else if (connectedToken) localStorage.setItem(TOKEN_KEY, connectedToken);
+    } catch { /* ignore */ }
+  });
+  connectBtn.addEventListener("click", () => connect(tokenInput.value.trim(), false));
+  disconnectBtn.addEventListener("click", () => {
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+    tokenInput.value = "";
+    connectBtn.disabled = true;
+    connectStatus.textContent = "";
+    connectStatus.className = "status";
+    setDisconnected();
+  });
+
+  // --- Sync -----------------------------------------------------------------
+  syncBtn.addEventListener("click", async () => {
+    const highlights = selectedRows().map(toReadwise);
+    if (!connectedToken || highlights.length === 0) return;
+
+    syncBtn.disabled = true;
+    syncProgress.classList.remove("hidden");
+    syncStatus.className = "status";
+    syncStatus.textContent =
+      "Syncing " + highlights.length + (highlights.length === 1 ? " highlight" : " highlights") + " to Readwise…";
+
+    try {
+      const resp = await fetch("/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: connectedToken, highlights }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) {
+        hasSynced = true;
+        syncStatus.className = "status ok";
+        syncStatus.textContent =
+          "✓ Synced " + (data.synced ?? highlights.length) + " highlights to Readwise.";
+      } else if (resp.status === 401) {
+        try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+        setDisconnected();
+        connectStatus.className = "status err";
+        connectStatus.textContent = "Readwise rejected the token — please reconnect.";
+      } else {
+        syncStatus.className = "status err";
+        syncStatus.textContent = "Sync failed: " + (data.detail || ("HTTP " + resp.status));
+      }
+    } catch (e) {
+      syncStatus.className = "status err";
+      syncStatus.textContent = "Sync failed: " + (e && e.message ? e.message : e);
+    } finally {
+      syncProgress.classList.add("hidden");
+      updateGates();
+    }
+  });
+
+  // --- Remembered token: prefill now, auto-connect once step 3 unlocks ------
+  (function restoreToken() {
+    let saved = null;
+    try { saved = localStorage.getItem(TOKEN_KEY); } catch { /* ignore */ }
+    if (saved) {
+      tokenInput.value = saved;
+      rememberToken.checked = true;
+      connectBtn.disabled = false;
+      pendingSavedToken = saved;
+    }
+  })();
+
+  // Apply the initial gating (steps 2–4 disabled until their step is reached).
+  updateGates();
+})();
+</script>
+</body>
+</html>

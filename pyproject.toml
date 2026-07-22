@@ -1,0 +1,38 @@
+[project]
+name = "kobo2readwise"
+version = "0.1.0"
+description = "Sync sideloaded Kobo highlights to Readwise, straight from your browser."
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [{ name = "kobo2readwise contributors" }]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "httpx>=0.28",
+    "slowapi>=0.1.9",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "respx>=0.22",
+]
+
+# This is a thin app, not a distributable library: tell uv not to try to build
+# or install the project itself, only its dependencies. Keeps the Docker image
+# and CI simple (no build backend required).
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
