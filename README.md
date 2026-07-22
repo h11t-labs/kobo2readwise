@@ -100,8 +100,8 @@ feature branch ──PR──▶ CI (ruff · pytest · docker build · commitlin
                                  ├─ release-please keeps a release PR up to date
                                  └─ merge that release PR:
                                       ├─ tag + GitHub release + CHANGELOG + version bump
-                                      └─ ensure Fly app exists → flyctl deploy
-                                         (only when a release was created)
+                                      └─ run tests → ensure Fly app exists → flyctl deploy
+                                         (only when a release was created; deploy gated on tests)
 ```
 
 Ordinary feature merges update the pending release PR but **do not** deploy. Only
@@ -117,7 +117,11 @@ types drive the version bump:
 | `feat:` | minor bump | `feat: show synced highlight count in the UI` |
 | `fix:` | patch bump | `fix: handle a missing .kobo folder gracefully` |
 | `docs:` `chore:` `ci:` `refactor:` `test:` `style:` | no bump | `ci: cache uv dependencies` |
-| `feat!:` / `BREAKING CHANGE:` footer | major bump | `feat!: drop Python 3.11 support` |
+| `feat!:` / `BREAKING CHANGE:` footer | minor bump while pre‑1.0, major once ≥ 1.0 | `feat!: require Python 3.14` |
+
+Breaking changes bump the **minor** version while the project is on `0.x`
+(`bump-minor-pre-major` in [`release-please-config.json`](release-please-config.json));
+they become major bumps after the first `1.0.0`.
 
 PR commits are checked by commitlint in CI, so a non-conventional message fails
 the build.
