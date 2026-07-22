@@ -22,7 +22,10 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --locked
+        # --frozen (not --locked): release-please bumps the version in pyproject.toml
+        # without touching uv.lock, so --locked fails on the release commit. Matches
+        # the Dockerfile, which also uses --frozen.
+        run: uv sync --frozen
 
       - name: Ruff lint
         run: uv run ruff check .
