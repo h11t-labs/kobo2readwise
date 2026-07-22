@@ -126,10 +126,12 @@
   .book[open] > summary::after { content: "−"; }
   .book-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .book .count { color: var(--muted); flex: none; font-size: 0.82rem; }
-  .hl-list { list-style: none; margin: 0; padding: 2px 12px 10px; }
-  .hl-list li { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--brand); }
-  .hl-text { font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; }
-  .hl-note { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+  .hl-list { list-style: none; margin: 0; padding: 2px 12px 12px; }
+  .hl-list li { margin: 12px 0; padding-left: 14px; border-left: 3px solid var(--brand); }
+  .hl-text { font-style: italic; font-size: 0.9rem; line-height: 1.55; white-space: pre-wrap; color: var(--ink); }
+  .hl-text::before { content: "\201C"; }
+  .hl-text::after { content: "\201D"; }
+  .hl-note { font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
   .hl-empty { padding: 12px; font-size: 0.9rem; color: var(--muted); }
   .status { margin-top: 14px; font-size: 0.95rem; }
   .status.ok { color: var(--ok); }
