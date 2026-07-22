@@ -22,6 +22,46 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # release-type "python" bumps pyproject.toml but leaves uv.lock's self-
+      # referential version pin stale, which breaks `uv sync --locked`. Sync just
+      # that pin into the release PR; fail loudly if `uv lock` touches anything
+      # else (a dependency change belongs in its own chore(deps) PR).
+      - name: Checkout release PR branch
+        if: steps.release.outputs.prs_created == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+
+      - name: Set up uv
+        if: steps.release.outputs.prs_created == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync uv.lock version pin in the release PR
+        if: steps.release.outputs.prs_created == 'true'
+        run: |
+          uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already in sync with pyproject.toml"
+            exit 0
+          fi
+          numstat=$(git diff --numstat -- uv.lock)
+          read -r added deleted _ <<< "$numstat"
+          diff_output=$(git diff -U3 -- uv.lock)
+          if [ "$added" != "1" ] || [ "$deleted" != "1" ] \
+             || ! echo "$diff_output" | grep -qE '^\+version = "[0-9]+\.[0-9]+\.[0-9]+"$' \
+             || ! echo "$diff_output" | grep -q 'name = "kobo2readwise"'; then
+            echo "::error::uv lock changed more than the self-referential version pin — refusing to auto-commit into the release PR. A dependency probably needs its own chore(deps) PR."
+            echo "$diff_output"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore: sync uv.lock version pin"
+          git push
+
   # Gate the deploy on the test suite: release PRs opened by GITHUB_TOKEN don't
   # trigger CI, and CI skips pushes to main, so without this a release could
   # deploy untested code.
@@ -34,7 +74,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv sync --frozen # release bumps pyproject version but not uv.lock; see ci.yml
+      - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
