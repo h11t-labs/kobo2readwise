@@ -83,6 +83,7 @@
     font-size: 0.85rem; font-weight: 700;
   }
   .card p.hint { color: var(--muted); font-size: 0.92rem; margin: 4px 0 16px; }
+  .card[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
   button {
     font: inherit; font-weight: 600; cursor: pointer;
     border: none; border-radius: 10px; padding: 11px 18px;
@@ -311,7 +312,6 @@
       <div class="step-body">
         <h2>Sync to Readwise</h2>
         <button id="sync-btn" disabled>Sync to Readwise</button>
-        <p class="hint" id="sync-hint" style="margin:10px 0 0">Load your database and connect to Readwise first.</p>
         <div id="sync-status" class="status"></div>
       </div>
     </div>
@@ -364,12 +364,15 @@
   const connectedPanel = el("connected-panel");
   const disconnectBtn = el("disconnect-btn");
   const syncBtn = el("sync-btn");
-  const syncHint = el("sync-hint");
   const syncStatus = el("sync-status");
+  const cardReview = el("card-review");
+  const cardConnect = el("card-connect");
+  const cardSync = el("card-sync");
 
   const TOKEN_KEY = "k2r_token";
-  let allRows = [];          // every highlight row read from the DB
-  let connectedToken = null; // set once the token is verified with Readwise
+  let allRows = [];             // every highlight row read from the DB
+  let connectedToken = null;    // set once the token is verified with Readwise
+  let pendingSavedToken = null; // remembered token, auto-connected once step 3 unlocks
 
   // --- Version in footer ----------------------------------------------------
   fetch("/healthz").then((r) => r.json()).then((d) => {
@@ -461,7 +464,7 @@
       empty.className = "hl-empty";
       empty.textContent = "No matching highlights found.";
       bookList.appendChild(empty);
-      updateSyncEnabled();
+      updateGates();
       return;
     }
 
@@ -499,7 +502,7 @@
       details.appendChild(ul);
       bookList.appendChild(details);
     }
-    updateSyncEnabled();
+    updateGates();
   }
 
   // Reset the review panel to its empty state (before a new load, and on failure).
@@ -509,7 +512,7 @@
     nBooks.textContent = "0";
     reviewHint.classList.add("hidden");
     bookList.innerHTML = '<div class="hl-empty">Load your Kobo database above to see highlights.</div>';
-    updateSyncEnabled();
+    updateGates();
   }
 
   // --- Step 1: read the database --------------------------------------------
@@ -577,21 +580,20 @@
     }
   });
 
-  // --- Sync-button enablement ----------------------------------------------
-  function updateSyncEnabled() {
+  // --- Step gating: each block stays disabled until the previous step is done
+  function updateGates() {
+    const dbLoaded = allRows.length > 0;
     const hasHighlights = selectedRows().length > 0;
-    const ready = Boolean(connectedToken) && hasHighlights;
-    syncBtn.disabled = !ready;
-    if (syncHint) {
-      syncHint.classList.toggle("hidden", ready);
-      if (!ready) {
-        syncHint.textContent =
-          !hasHighlights && !connectedToken
-            ? "Load your Kobo database (step 1) and connect to Readwise (step 3) first."
-            : !hasHighlights
-              ? "Load your Kobo database (step 1) first."
-              : "Connect to Readwise (step 3) first.";
-      }
+    const connected = Boolean(connectedToken);
+    cardReview.setAttribute("aria-disabled", dbLoaded ? "false" : "true");
+    cardConnect.setAttribute("aria-disabled", hasHighlights ? "false" : "true");
+    cardSync.setAttribute("aria-disabled", connected && hasHighlights ? "false" : "true");
+    syncBtn.disabled = !(connected && hasHighlights);
+    // Auto-reconnect a remembered token, but only once step 3 is reachable.
+    if (hasHighlights && pendingSavedToken && !connectedToken) {
+      const t = pendingSavedToken;
+      pendingSavedToken = null;
+      connect(t, true);
     }
   }
 
@@ -600,7 +602,7 @@
     connectedToken = token;
     connectPanel.classList.add("hidden");
     connectedPanel.classList.remove("hidden");
-    updateSyncEnabled();
+    updateGates();
   }
 
   function setDisconnected() {
@@ -609,6 +611,7 @@
     connectPanel.classList.remove("hidden");
     syncStatus.textContent = "";
     syncStatus.className = "status";
+    updateGates();
   }
 
   async function connect(token, fromStorage) {
@@ -707,11 +710,11 @@
       syncStatus.className = "status err";
       syncStatus.textContent = "Sync failed: " + (e && e.message ? e.message : e);
     } finally {
-      updateSyncEnabled();
+      updateGates();
     }
   });
 
-  // --- Auto-reconnect from a remembered token -------------------------------
+  // --- Remembered token: prefill now, auto-connect once step 3 unlocks ------
   (function restoreToken() {
     let saved = null;
     try { saved = localStorage.getItem(TOKEN_KEY); } catch { /* ignore */ }
@@ -719,9 +722,12 @@
       tokenInput.value = saved;
       rememberToken.checked = true;
       connectBtn.disabled = false;
-      connect(saved, true);
+      pendingSavedToken = saved;
     }
   })();
+
+  // Apply the initial gating (steps 2–4 disabled until their step is reached).
+  updateGates();
 })();
 </script>
 </body>
