@@ -164,6 +164,9 @@
     border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .progress { position: relative; height: 6px; margin-top: 14px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .progress-bar { position: absolute; top: 0; height: 100%; width: 35%; border-radius: 999px; background: var(--brand); animation: indeterminate 1.1s ease-in-out infinite; }
+  @keyframes indeterminate { 0% { left: -35%; } 100% { left: 100%; } }
   footer { text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 30px; line-height: 1.9; }
   footer a { text-decoration: none; }
   .controls { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px; }
@@ -311,7 +314,9 @@
       <div class="step-num">4</div>
       <div class="step-body">
         <h2>Sync to Readwise</h2>
+        <p class="hint" id="sync-count" style="margin:4px 0 14px">No highlights selected to sync.</p>
         <button id="sync-btn" disabled>Sync to Readwise</button>
+        <div class="progress hidden" id="sync-progress"><div class="progress-bar"></div></div>
         <div id="sync-status" class="status"></div>
       </div>
     </div>
@@ -364,6 +369,8 @@
   const connectedPanel = el("connected-panel");
   const disconnectBtn = el("disconnect-btn");
   const syncBtn = el("sync-btn");
+  const syncCount = el("sync-count");
+  const syncProgress = el("sync-progress");
   const syncStatus = el("sync-status");
   const cardReview = el("card-review");
   const cardConnect = el("card-connect");
@@ -582,13 +589,26 @@
 
   // --- Step gating: each block stays disabled until the previous step is done
   function updateGates() {
+    const sel = selectedRows();
     const dbLoaded = allRows.length > 0;
-    const hasHighlights = selectedRows().length > 0;
+    const hasHighlights = sel.length > 0;
     const connected = Boolean(connectedToken);
     cardReview.setAttribute("aria-disabled", dbLoaded ? "false" : "true");
     cardConnect.setAttribute("aria-disabled", hasHighlights ? "false" : "true");
     cardSync.setAttribute("aria-disabled", connected && hasHighlights ? "false" : "true");
     syncBtn.disabled = !(connected && hasHighlights);
+
+    // Show how many highlights (from how many books) will be synced.
+    if (hasHighlights) {
+      const books = new Set(sel.map((r) => r.volumeId || bookTitle(r))).size;
+      syncCount.textContent =
+        sel.length + (sel.length === 1 ? " highlight" : " highlights") +
+        " from " + books + (books === 1 ? " book" : " books") +
+        " will be synced to Readwise.";
+    } else {
+      syncCount.textContent = "No highlights selected to sync.";
+    }
+
     // Auto-reconnect a remembered token, but only once step 3 is reachable.
     if (hasHighlights && pendingSavedToken && !connectedToken) {
       const t = pendingSavedToken;
@@ -683,8 +703,10 @@
     if (!connectedToken || highlights.length === 0) return;
 
     syncBtn.disabled = true;
+    syncProgress.classList.remove("hidden");
     syncStatus.className = "status";
-    syncStatus.innerHTML = '<span class="spinner"></span>Syncing ' + highlights.length + " highlights…";
+    syncStatus.textContent =
+      "Syncing " + highlights.length + (highlights.length === 1 ? " highlight" : " highlights") + " to Readwise…";
 
     try {
       const resp = await fetch("/sync", {
@@ -710,6 +732,7 @@
       syncStatus.className = "status err";
       syncStatus.textContent = "Sync failed: " + (e && e.message ? e.message : e);
     } finally {
+      syncProgress.classList.add("hidden");
       updateGates();
     }
   });
